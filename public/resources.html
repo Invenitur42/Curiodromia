@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Resources for you — Agora</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="navHost"></div>
+
+  <main class="page">
+    <div class="page-header">
+      <h1 id="pageTitle">Resources</h1>
+      <a href="/home.html" class="ghost small" style="padding:0.5rem 0.9rem; border-radius:10px; border:1px solid var(--border);">Go to homepage →</a>
+    </div>
+    <p class="tagline" id="goalLine" style="color:var(--muted);"></p>
+
+    <div class="resource-grid" id="resourceGrid"></div>
+
+    <div class="page-header" style="margin-top:2rem;">
+      <h1 style="font-size:1.1rem;">Classrooms in this category</h1>
+    </div>
+    <div id="classroomList"></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script>
+    (async function init() {
+      const user = await requireSession();
+      renderNav("");
+
+      const category = qs("category") || user.learning_category;
+      if (!category) { location.href = "/home.html"; return; }
+
+      const { categories } = await api("/api/categories");
+      const label = (categories.find((c) => c.slug === category) || {}).label || category;
+      document.getElementById("pageTitle").textContent = `Learning: ${label}`;
+      document.getElementById("goalLine").textContent = user.learning_goal
+        ? `Based on what you told us: "${user.learning_goal}"`
+        : "";
+
+      const { resources } = await api(`/api/resources?category=${encodeURIComponent(category)}`);
+      document.getElementById("resourceGrid").innerHTML = resources.length
+        ? resources
+            .map(
+              (r) => `
+          <div class="card resource-card">
+            <h3>${escapeHtml(r.title)}</h3>
+            <p>${escapeHtml(r.description || "")}</p>
+            <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Visit resource →</a>
+          </div>`
+            )
+            .join("")
+        : `<p class="empty-note">No curated resources for this category yet.</p>`;
+
+      const { classrooms } = await api(`/api/classrooms?category=${encodeURIComponent(category)}`);
+      document.getElementById("classroomList").innerHTML = classrooms.length
+        ? classrooms
+            .map(
+              (c) => `
+          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <strong>${escapeHtml(c.title)}</strong>
+              <div class="q-meta">by ${escapeHtml(c.creator_name)} · ${c.member_count} member${c.member_count === 1 ? "" : "s"} · ${c.status === "open" ? "live" : "ended"}</div>
+            </div>
+            <a href="/classroom.html?id=${c.id}" class="ghost small" style="padding:0.4rem 0.8rem; border-radius:8px; border:1px solid var(--border);">View</a>
+          </div>`
+            )
+            .join("")
+        : `<p class="empty-note">No classrooms in this category yet — <a href="/classrooms.html">start one</a>.</p>`;
+    })();
+  </script>
+</body>
+</html>

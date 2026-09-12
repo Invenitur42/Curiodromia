@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Profile — Agora</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="navHost"></div>
+
+  <main class="page">
+    <div class="card profile-header">
+      <label id="avatarLabel" style="cursor:pointer;">
+        <img id="profileAvatar" class="avatar-lg" src="/img/default-avatar.svg" alt="" />
+        <input type="file" id="avatarInput" accept="image/*" hidden />
+      </label>
+      <div>
+        <h1 id="profileUsername" style="margin:0 0 0.3rem;"></h1>
+        <span class="badge tier" id="profileTier"></span>
+        <div class="profile-stats">
+          <div class="stat"><div class="num" id="statRep">0</div><div class="label">Reputation</div></div>
+          <div class="stat"><div class="num" id="statQuestions">0</div><div class="label">Questions asked</div></div>
+        </div>
+      </div>
+    </div>
+
+    <h2 style="font-size:1.1rem;">Questions asked</h2>
+    <div id="questionList"></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script>
+    (async function init() {
+      const me = await requireSession();
+      renderNav("");
+
+      const profileId = qs("id") || me.id;
+      const isMe = Number(profileId) === me.id;
+      if (!isMe) {
+        const label = document.getElementById("avatarLabel");
+        label.style.cursor = "default";
+        label.style.pointerEvents = "none";
+      }
+
+      const { user, questions } = await api(`/api/profile/${profileId}`);
+      document.getElementById("profileUsername").textContent = user.username;
+      document.getElementById("profileTier").textContent = user.tier;
+      document.getElementById("statRep").textContent = user.reputation;
+      document.getElementById("statQuestions").textContent = questions.length;
+      if (user.avatar_url) document.getElementById("profileAvatar").src = user.avatar_url;
+
+      document.getElementById("questionList").innerHTML = questions.length
+        ? questions
+            .map(
+              (q) => `
+          <div class="card q-card">
+            <div class="vote-col"><span class="vote-score">${q.score}</span></div>
+            <div class="q-body">
+              <p class="q-title"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></p>
+              <div class="q-meta">${timeAgo(q.created_at)} ${q.category ? `<span class="badge category">${escapeHtml(q.category)}</span>` : ""}</div>
+            </div>
+          </div>`
+            )
+            .join("")
+        : `<p class="empty-note">No questions asked yet.</p>`;
+
+      if (isMe) {
+        document.getElementById("avatarInput").addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          e.target.value = "";
+          if (!file) return;
+          const fd = new FormData();
+          fd.append("avatar", file);
+          const res = await fetch("/api/profile/avatar", { method: "POST", body: fd, credentials: "same-origin" });
+          const data = await res.json();
+          if (res.ok) document.getElementById("profileAvatar").src = data.avatar_url;
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

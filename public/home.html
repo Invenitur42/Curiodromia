@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Home — Agora</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="navHost"></div>
+
+  <main class="page">
+    <div class="page-header">
+      <h1>Trending questions</h1>
+      <button type="button" class="primary" id="askBtn">+ Ask a question</button>
+    </div>
+
+    <div class="filters">
+      <div class="tab-strip">
+        <button type="button" class="active" data-scope="today" data-sort="trending">Today</button>
+        <button type="button" data-scope="home" data-sort="trending">All time</button>
+        <button type="button" data-scope="home" data-sort="new">Newest</button>
+      </div>
+      <select id="categoryFilter">
+        <option value="">All categories</option>
+      </select>
+    </div>
+
+    <div id="questionList"></div>
+  </main>
+
+  <dialog id="askDialog">
+    <form id="askForm" class="form-col">
+      <h3>Ask a question</h3>
+      <input type="text" id="askTitle" placeholder="What do you want to ask?" required maxlength="200" />
+      <textarea id="askBody" rows="4" placeholder="Add details (optional)"></textarea>
+      <select id="askCategory" required></select>
+      <p class="error" id="askError"></p>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" id="askCancel">Cancel</button>
+        <button type="submit" class="primary">Post question</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/common.js"></script>
+  <script>
+    let me = null;
+    let currentScope = "today";
+    let currentSort = "trending";
+
+    async function loadQuestions() {
+      const category = document.getElementById("categoryFilter").value;
+      const params = new URLSearchParams({ scope: currentScope, sort: currentSort });
+      if (category) params.set("category", category);
+      const { questions } = await api(`/api/questions?${params}`);
+      renderQuestions(questions);
+    }
+
+    function renderQuestions(questions) {
+      const list = document.getElementById("questionList");
+      if (!questions.length) {
+        list.innerHTML = `<p class="empty-note">No questions here yet — be the first to ask one.</p>`;
+        return;
+      }
+      list.innerHTML = questions
+        .map(
+          (q) => `
+        <div class="card q-card">
+          <div class="vote-col">
+            <button type="button" class="vote-btn" data-vote="1" data-type="question" data-id="${q.id}">▲</button>
+            <span class="vote-score">${q.score}</span>
+            <button type="button" class="vote-btn" data-vote="-1" data-type="question" data-id="${q.id}">▼</button>
+          </div>
+          <div class="q-body">
+            <p class="q-title"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></p>
+            <div class="q-meta">
+              <span>${escapeHtml(q.username)}</span>
+              <span>${timeAgo(q.created_at)}</span>
+              ${q.category ? `<span class="badge category">${escapeHtml(q.category)}</span>` : ""}
+              <span>${q.answer_count} answer${q.answer_count === 1 ? "" : "s"}</span>
+            </div>
+          </div>
+        </div>`
+        )
+        .join("");
+
+      list.querySelectorAll(".vote-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await api("/api/vote", {
+              method: "POST",
+              body: JSON.stringify({ targetType: btn.dataset.type, targetId: Number(btn.dataset.id), value: Number(btn.dataset.vote) }),
+            });
+            loadQuestions();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+    }
+
+    document.querySelectorAll(".tab-strip button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-strip button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentScope = btn.dataset.scope;
+        currentSort = btn.dataset.sort || "trending";
+        loadQuestions();
+      });
+    });
+
+    document.getElementById("categoryFilter").addEventListener("change", loadQuestions);
+
+    document.getElementById("askBtn").addEventListener("click", () => document.getElementById("askDialog").showModal());
+    document.getElementById("askCancel").addEventListener("click", () => document.getElementById("askDialog").close());
+
+    document.getElementById("askForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      document.getElementById("askError").textContent = "";
+      try {
+        await api("/api/questions", {
+          method: "POST",
+          body: JSON.stringify({
+            title: document.getElementById("askTitle").value.trim(),
+            body: document.getElementById("askBody").value.trim(),
+            category: document.getElementById("askCategory").value,
+          }),
+        });
+        document.getElementById("askDialog").close();
+        e.target.reset();
+        loadQuestions();
+      } catch (err) {
+        document.getElementById("askError").textContent = err.message;
+      }
+    });
+
+    (async function init() {
+      me = await requireSession();
+      renderNav("/home.html");
+
+      const { categories } = await api("/api/categories");
+      const opts = categories.map((c) => `<option value="${c.slug}">${escapeHtml(c.label)}</option>`).join("");
+      document.getElementById("categoryFilter").insertAdjacentHTML("beforeend", opts);
+      document.getElementById("askCategory").innerHTML = opts;
+
+      loadQuestions();
+    })();
+  </script>
+</body>
+</html>

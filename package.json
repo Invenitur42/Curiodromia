@@ -1,0 +1,19 @@
+{
+  "name": "agora",
+  "version": "1.0.0",
+  "description": "A Q&A learning platform with ranked answers and live classrooms.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "multer": "^2.0.0",
+    "socket.io": "^4.7.5"
+  }
+}

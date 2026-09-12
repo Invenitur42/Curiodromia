@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agora — ask, answer, learn</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <section class="auth-screen">
+    <div class="auth-card">
+      <h1 class="brand">Agora<span>.</span></h1>
+      <p class="tagline">Questions rise or fall on their own merit. Join a classroom to learn live.</p>
+
+      <div class="tabs">
+        <button type="button" class="tab active" data-tab="login">Log in</button>
+        <button type="button" class="tab" data-tab="register">Sign up</button>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <label>Username
+          <input type="text" name="username" autocomplete="username" required />
+        </label>
+        <label>Password
+          <input type="password" name="password" autocomplete="current-password" required />
+        </label>
+        <p class="error" id="loginError"></p>
+        <button type="submit" class="primary full">Log in</button>
+      </form>
+
+      <form id="registerForm" class="auth-form" hidden>
+        <label>Username
+          <input type="text" name="username" pattern="[a-zA-Z0-9_]{3,20}" title="3-20 letters, numbers or underscores" required />
+        </label>
+        <label>Password
+          <input type="password" name="password" pattern="[a-zA-Z0-9]{10,20}" title="10-20 alphanumeric characters" required />
+        </label>
+        <p class="hint">Password: 10-20 letters/numbers, no symbols required.</p>
+        <p class="error" id="registerError"></p>
+        <button type="submit" class="primary full">Create account</button>
+      </form>
+
+      <p class="demo-note">Try it instantly with the seeded demo account:<br /><strong>demo</strong> / <strong>DemoPass123</strong></p>
+    </div>
+  </section>
+
+  <script src="/js/common.js"></script>
+  <script>
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        const isLogin = tab.dataset.tab === "login";
+        document.getElementById("loginForm").hidden = !isLogin;
+        document.getElementById("registerForm").hidden = isLogin;
+      });
+    });
+
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      document.getElementById("loginError").textContent = "";
+      try {
+        const { needsOnboarding } = await api("/api/login", {
+          method: "POST",
+          body: JSON.stringify({ username: f.username.value.trim(), password: f.password.value }),
+        });
+        location.href = needsOnboarding ? "/onboarding.html" : "/home.html";
+      } catch (err) {
+        document.getElementById("loginError").textContent = err.message;
+      }
+    });
+
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      document.getElementById("registerError").textContent = "";
+      try {
+        await api("/api/register", {
+          method: "POST",
+          body: JSON.stringify({ username: f.username.value.trim(), password: f.password.value }),
+        });
+        location.href = "/onboarding.html";
+      } catch (err) {
+        document.getElementById("registerError").textContent = err.message;
+      }
+    });
+
+    // If already logged in, skip straight past the auth screen.
+    api("/api/me").then(({ user, needsOnboarding }) => {
+      if (user) location.href = needsOnboarding ? "/onboarding.html" : "/home.html";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Question — Agora</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="navHost"></div>
+
+  <main class="page">
+    <div id="questionCard"></div>
+
+    <h2 style="font-size:1.1rem;" id="answersHeading">Answers</h2>
+    <div class="card" id="answersCard"></div>
+
+    <form id="answerForm" class="card form-col">
+      <textarea id="answerBody" rows="3" placeholder="Write an answer…" required></textarea>
+      <p class="error" id="answerError"></p>
+      <button type="submit" class="primary" style="align-self:flex-end;">Post answer</button>
+    </form>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script>
+    let me = null;
+    const questionId = qs("id");
+
+    function voteButtonsHtml(type, id, score, myVote) {
+      return `
+        <div class="vote-col">
+          <button type="button" class="vote-btn ${myVote === 1 ? "active-up" : ""}" data-vote="1" data-type="${type}" data-id="${id}">▲</button>
+          <span class="vote-score">${score}</span>
+          <button type="button" class="vote-btn ${myVote === -1 ? "active-down" : ""}" data-vote="-1" data-type="${type}" data-id="${id}">▼</button>
+        </div>`;
+    }
+
+    async function load() {
+      const { question, answers, myVotes } = await api(`/api/questions/${questionId}`);
+      const myQVote = (myVotes.find((v) => v.target_type === "question" && v.target_id === question.id) || {}).value || 0;
+
+      document.getElementById("questionCard").innerHTML = `
+        <div class="card q-card">
+          ${voteButtonsHtml("question", question.id, question.score, myQVote)}
+          <div class="q-body">
+            <p class="q-title">${escapeHtml(question.title)}</p>
+            ${question.body ? `<p>${escapeHtml(question.body)}</p>` : ""}
+            <div class="q-meta">
+              <span>${escapeHtml(question.username)}</span>
+              <span>${timeAgo(question.created_at)}</span>
+              ${question.category ? `<span class="badge category">${escapeHtml(question.category)}</span>` : ""}
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById("answersHeading").textContent = `${answers.length} Answer${answers.length === 1 ? "" : "s"}`;
+      document.getElementById("answersCard").innerHTML = answers.length
+        ? answers
+            .map((a) => {
+              const myAVote = (myVotes.find((v) => v.target_type === "answer" && v.target_id === a.id) || {}).value || 0;
+              return `
+              <div class="answer">
+                ${voteButtonsHtml("answer", a.id, a.score, myAVote)}
+                <div class="q-body">
+                  <p>${escapeHtml(a.body)}</p>
+                  <div class="q-meta"><span>${escapeHtml(a.username)}</span><span>${timeAgo(a.created_at)}</span></div>
+                </div>
+              </div>`;
+            })
+            .join("")
+        : `<p class="empty-note">No answers yet — be the first to help.</p>`;
+
+      attachVoteHandlers();
+    }
+
+    function attachVoteHandlers() {
+      document.querySelectorAll(".vote-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const isActive = btn.classList.contains("active-up") || btn.classList.contains("active-down");
+          const value = isActive ? 0 : Number(btn.dataset.vote);
+          try {
+            await api("/api/vote", {
+              method: "POST",
+              body: JSON.stringify({ targetType: btn.dataset.type, targetId: Number(btn.dataset.id), value }),
+            });
+            load();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+    }
+
+    document.getElementById("answerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      document.getElementById("answerError").textContent = "";
+      try {
+        await api(`/api/questions/${questionId}/answers`, {
+          method: "POST",
+          body: JSON.stringify({ body: document.getElementById("answerBody").value.trim() }),
+        });
+        document.getElementById("answerBody").value = "";
+        load();
+      } catch (err) {
+        document.getElementById("answerError").textContent = err.message;
+      }
+    });
+
+    (async function init() {
+      me = await requireSession();
+      renderNav("/home.html");
+      load();
+    })();
+  </script>
+</body>
+</html>
