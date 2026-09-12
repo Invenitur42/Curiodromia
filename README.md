@@ -61,12 +61,7 @@ The seed also adds a couple of sample questions, resources for every category, a
 
 This app needs a persistent server (SQLite + WebSockets), so it can't run as a static GitHub Pages site. To get a real working link here:
 
-1. Push this repo to GitHub.
-2. Deploy to a Node-friendly free host such as [Render](https://render.com) or [Railway](https://railway.app) — point it at `npm start`.
-3. Replace the line below with your deployed URL.
-
-**Demo:** _add your deployed URL here once step 2 above is done — e.g. `https://agora-learn.onrender.com`_
-
+**Demo:** https://curiodromia-production.up.railway.app/
 ## Project structure
 
 ```
@@ -89,7 +84,7 @@ agora/
     └── js/common.js           # Shared API helper, nav bar, auth guard
 ```
 
-## Known limitations (good "next steps" to mention in an interview)
+## Known limitations (next steps)
 
 - AI-generated classroom conclusions are a deliberate stub (`501 Not Implemented` + a disabled "Coming soon" button) — manual conclusions are the working path today. Wiring this up to a real summarization call (e.g. the Anthropic or OpenAI API) over the classroom's questions/answers would be the natural next step.
 - Sessions are stored in memory, so restarting the server logs everyone out.
