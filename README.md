@@ -2,6 +2,8 @@
 
 A Q&A learning platform (Aiming to be a Social Media Platform) where answers rise or fall on their own merit, plus a **classrooms** feature for live group learning. Built with Node.js, Express, Socket.IO and SQLite.
 
+**Demo:** https://curiodromia-production.up.railway.app/
+
 ## Features
 
 **Onboarding**
