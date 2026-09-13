@@ -1,6 +1,6 @@
-# Agora
+# Curiodromia
 
-A Q&A learning platform where answers rise or fall on their own merit, plus a **classrooms** feature for live group learning. Built with Node.js, Express, Socket.IO and SQLite.
+A Q&A learning platform (Aiming to be a Social Media Platform) where answers rise or fall on their own merit, plus a **classrooms** feature for live group learning. Built with Node.js, Express, Socket.IO and SQLite.
 
 ## Features
 
