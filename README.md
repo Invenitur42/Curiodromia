@@ -3,6 +3,7 @@ Continuation notes:
   - Implement showing list of trackers and tracking
   - Implement close feature for classroom side panel
   - Add Profile picture upload for different aspect ratio not accepted bug (Input a photo editor to crop)
+  - Add dedicated resources page (make it so people can add resource links, the resource links have to go through a verification process (a scam check))
 
 
 
