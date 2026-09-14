@@ -12,26 +12,31 @@ Curiodromia is designed as a social platform centered on genuine inquiry. Instea
 
 ## Features
 
-**Onboarding**
-- Accounts are just a username + password (alphanumeric, no email required)
-- After signup you're asked what you want to learn or whether you're just exploring
-  - Learning path → matched to a category → curated free resources + relevant classrooms
+**Login (no separate signup)**
+- Single screen: username + password only
+- First time a username is used, an account is created and you are sent to setup
+- Returning users go straight to the homepage feed
+- Passwords are hashed and stored in SQLite; profile assets live in `public/uploads/users/{username}/`
+
+**Onboarding / setup**
+- After first login you’re asked what you want to learn or whether you’re just exploring
+  - Learning path → matched to a category → curated free resources + relevant classes
   - Explore path → straight to the feed
 
 **Home / Feed**
 - Category sidebar + ranked feed of questions (Most / Least / Recommendations)
-- Ask a question with optional image/video/audio attachments (UI ready)
-- Upvote/downvote so quality rises; best answers sort to the top of each thread
-- Filter by category; see what's trending today or all-time
+- Ask a question with optional image/video/audio controls (UI ready)
+- **Upvote / downvote directly from the feed** so quality rises immediately
+- Best answers sort to the top of each thread
 
 **Classes**
-- Browse or create live group learning rooms ("classes")
+- Browse or create live group learning rooms
 - Each class has a topic/intro that others see before joining
-- Inside: real-time chat-style discussion via Socket.IO, ranked questions, and pinned milestone answers
+- Inside: real-time discussion via Socket.IO, ranked questions, and pinned milestone answers
 - Creator can end the class and leave a conclusion (AI generation coming soon)
 
 **Profiles**
-- Avatar, username, questions you've asked, and classes you're in / have completed
+- Avatar (stored in the user’s named folder), username, questions asked, and classes
 - Reputation derived from the net quality of your questions and answers
 
 ## Tech stack
@@ -60,6 +65,8 @@ username: demo
 password: DemoPass123
 ```
 
+Or just type any new username + password on the login screen to create an account.
+
 ## Project structure
 
 ```
@@ -70,24 +77,24 @@ Curiodromia/
 │   ├── init.js
 │   └── queries.js
 └── public/
-    ├── index.html          # Login / register
-    ├── onboarding.html
+    ├── index.html          # Login (unified — no signup)
+    ├── onboarding.html     # First-login setup
     ├── resources.html
-    ├── home.html           # Main feed (mockup-matched)
+    ├── home.html           # Main feed with live voting
     ├── question.html
-    ├── classrooms.html     # Classes browse/create (mockup-matched)
-    ├── classroom.html      # Live class room
-    ├── profile.html        # User profile (mockup-matched)
+    ├── classrooms.html
+    ├── classroom.html
+    ├── profile.html
+    ├── uploads/users/      # Per-username profile folders
     ├── css/style.css
-    └── js/common.js        # Shared helpers + bottom navigation
+    └── js/common.js
 ```
 
 ## Known limitations / next steps
 
-- AI classroom conclusions remain a stub ("Coming soon")
+- AI class conclusions remain a stub (“Coming soon”)
 - Sessions are in-memory
 - No pagination yet on large feeds
 - Media upload for questions is UI-present; full backend support can be expanded
-- Profile currently surfaces questions strongly; class history is approximated from membership data
 
 This is an active social product in progress. The ranking of questions and answers by community merit is the foundation everything else builds on.
