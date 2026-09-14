@@ -2,7 +2,7 @@
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    headers: opts.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
     credentials: "same-origin",
     ...opts,
   });
@@ -31,11 +31,6 @@ function timeAgo(iso) {
   return Math.floor(secs / 604800) + "w ago";
 }
 
-/**
- * Ensures the visitor is logged in (and onboarded, unless the current
- * page is allowed to skip that check). Redirects otherwise.
- * Returns the current user object.
- */
 async function requireSession({ allowPreOnboarding = false } = {}) {
   const { user, needsOnboarding } = await api("/api/me");
   if (!user) {
@@ -49,12 +44,7 @@ async function requireSession({ allowPreOnboarding = false } = {}) {
   return user;
 }
 
-/** Bottom navigation matching the mockups.
- *  Icons: ? (Home/Questions), = (Classes), person silhouette (Profile)
- */
 function renderBottomNav(active) {
-  // active: 'home' | 'classes' | 'profile'
-  const host = document.getElementById("bottomNavHost") || document.body;
   const existing = document.querySelector(".bottom-nav");
   if (existing) existing.remove();
 
@@ -75,7 +65,6 @@ function renderBottomNav(active) {
   document.body.appendChild(nav);
 }
 
-/** Legacy top nav kept for secondary pages (question, classroom, etc.) */
 function renderNav(activeHref) {
   const host = document.getElementById("navHost");
   if (!host) return;
@@ -104,8 +93,10 @@ function renderNav(activeHref) {
   });
 
   api("/api/me").then(({ user }) => {
-    if (user && user.avatar_url) document.getElementById("navAvatar").src = user.avatar_url;
-    if (user) document.getElementById("navProfileLink").href = `/profile.html?id=${user.id}`;
+    if (!user) return;
+    const src = user.avatar_thumb || user.avatar_url;
+    if (src) document.getElementById("navAvatar").src = src;
+    document.getElementById("navProfileLink").href = `/profile.html?id=${user.id}`;
   });
 }
 
