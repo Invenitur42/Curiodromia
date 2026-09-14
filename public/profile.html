@@ -5,84 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Profile — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
-<style>
-  .profile-header-bar {
-    display: flex;
-    justify-content: flex-end;
-    padding: 0.75rem 1rem 0;
-    max-width: 900px;
-    margin: 0 auto;
-    position: relative;
-  }
-  .menu-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    width: 40px; height: 40px;
-    border-radius: 10px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .menu-btn:hover { border-color: var(--border-light); color: var(--text); }
-  .menu-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; }
-  .dropdown-menu {
-    display: none;
-    position: absolute;
-    top: 52px; right: 1rem;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    min-width: 220px;
-    z-index: 50;
-    overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  }
-  .dropdown-menu.open { display: block; }
-  .dropdown-menu button, .dropdown-menu a {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 0.75rem 1rem;
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-size: 0.9rem;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  .dropdown-menu button:hover, .dropdown-menu a:hover {
-    background: var(--panel-2);
-  }
-  .dropdown-menu .danger { color: #ff6b6b; }
-  .settings-modal {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.75);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    padding: 1rem;
-  }
-  .settings-modal.open { display: flex; }
-  .settings-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.5rem;
-    width: min(400px, 100%);
-  }
-  .settings-card h3 { margin: 0 0 1rem; }
-  .settings-card label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.3rem; }
-  .settings-card input {
-    width: 100%; margin-bottom: 0.85rem;
-    padding: 0.6rem 0.75rem;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--panel-2);
-    color: var(--text);
-  }
-  .settings-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-</style>
 </head>
 <body>
   <div class="app-shell">
@@ -122,7 +44,6 @@
     </div>
   </div>
 
-  <!-- Account info modal -->
   <div class="settings-modal" id="accountModal">
     <div class="settings-card">
       <h3>Account information</h3>
@@ -135,7 +56,6 @@
     </div>
   </div>
 
-  <!-- Password modal -->
   <div class="settings-modal" id="passwordModal">
     <div class="settings-card">
       <h3>Change password</h3>
@@ -151,7 +71,6 @@
     </div>
   </div>
 
-  <!-- Username modal -->
   <div class="settings-modal" id="usernameModal">
     <div class="settings-card">
       <h3>Change username</h3>
@@ -171,6 +90,7 @@
   <script>
     (async function init() {
       const me = await requireSession();
+      renderTopLogo();
       renderBottomNav("profile");
 
       const profileId = qs("id") || me.id;
@@ -241,7 +161,6 @@
           if (res.ok) document.getElementById("profileAvatar").src = data.avatar_thumb || data.avatar_url;
         });
 
-        // Sandwich menu
         const menuBtn = document.getElementById("menuBtn");
         const dropdown = document.getElementById("dropdownMenu");
         menuBtn.addEventListener("click", (e) => {

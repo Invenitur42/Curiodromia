@@ -26,22 +26,22 @@
         <div class="sort-tabs">
           <button type="button" class="active" data-sort="most">Most</button>
           <button type="button" data-sort="least">Least</button>
-          <button type="button" data-sort="rec">Recommendations</button>
+          <button type="button" data-sort="rec">For you</button>
         </div>
-        <p class="feed-section-label">Most upvoted today</p>
+        <p class="feed-section-label">Community questions</p>
         <div id="questionList"></div>
       </main>
 
       <aside class="sidebar-right" id="inputSidebar">
-        <h2>Input</h2>
+        <h2>Compose</h2>
         <div class="input-panel">
-          <textarea id="askTitle" placeholder="Ask a question..." maxlength="200"></textarea>
+          <textarea id="askTitle" placeholder="Ask a question…" maxlength="200"></textarea>
           <div class="media-row">
-            <label class="media-btn"><input type="file" id="mediaImage" accept="image/*" hidden />🖼 Image</label>
-            <label class="media-btn"><input type="file" id="mediaVideo" accept="video/*" hidden />🎬 Video</label>
-            <label class="media-btn"><input type="file" id="mediaAudio" accept="audio/*" hidden />🔊 Audio</label>
+            <label class="media-btn" id="btnImage"><input type="file" id="mediaImage" accept="image/*" hidden />Image</label>
+            <label class="media-btn" id="btnVideo"><input type="file" id="mediaVideo" accept="video/*" hidden />Video</label>
+            <label class="media-btn" id="btnAudio"><input type="file" id="mediaAudio" accept="audio/*" hidden />Audio</label>
           </div>
-          <p id="mediaLabel" style="font-size:0.75rem;color:var(--muted);min-height:1em;"></p>
+          <p id="mediaLabel" style="font-size:0.75rem;color:var(--muted);min-height:1.1em;"></p>
           <select id="askCategory"></select>
           <button type="button" class="primary post-btn" id="postBtn">Post</button>
           <p class="error" id="askError" style="min-height:1.2em;"></p>
@@ -49,7 +49,6 @@
       </aside>
     </div>
 
-    <!-- Mobile floating post bar keeps creation visible -->
     <div class="mobile-post-bar" id="mobilePostBar">
       <button type="button" class="primary" id="mobilePostOpen">+ Ask a question</button>
     </div>
@@ -98,14 +97,6 @@
         return;
       }
       el.innerHTML = questions.map((q) => {
-        let mediaHtml = "";
-        if (q.media_url && q.media_type === "image") {
-          mediaHtml = `<img src="${escapeHtml(q.media_url)}" alt="" class="feed-media-thumb" />`;
-        } else if (q.media_url && q.media_type === "video") {
-          mediaHtml = `<video src="${escapeHtml(q.media_url)}" class="feed-media-thumb" muted playsinline></video>`;
-        } else if (q.media_url && q.media_type === "audio") {
-          mediaHtml = `<audio src="${escapeHtml(q.media_url)}" controls style="max-width:140px;height:32px;"></audio>`;
-        }
         const thumb = q.avatar_thumb || q.avatar_url || "/img/default-avatar.svg";
         return `
         <article class="question-card" data-id="${q.id}">
@@ -123,7 +114,7 @@
               ${q.category ? `<span class="badge category">${escapeHtml(q.category)}</span>` : ""}
               <span>${q.answer_count || 0} answers</span>
             </div>
-            ${mediaHtml}
+            ${renderMediaBlock(q.media_type, q.media_url)}
           </div>
         </article>`;
       }).join("");
@@ -145,13 +136,15 @@
       });
     }
 
-    function bindMedia(inputId, label) {
+    function bindMedia(inputId, btnId, label) {
       document.getElementById(inputId).addEventListener("change", (e) => {
         const f = e.target.files[0];
         if (!f) return;
         selectedFile = f;
         document.getElementById("mediaLabel").textContent = `${label}: ${f.name}`;
-        // clear other inputs
+        ["btnImage", "btnVideo", "btnAudio"].forEach((id) => {
+          document.getElementById(id).classList.toggle("has-file", id === btnId);
+        });
         ["mediaImage", "mediaVideo", "mediaAudio"].forEach((id) => {
           if (id !== inputId) document.getElementById(id).value = "";
         });
@@ -186,16 +179,14 @@
         document.getElementById("askTitle").value = "";
         document.getElementById("mediaLabel").textContent = "";
         selectedFile = null;
+        ["btnImage", "btnVideo", "btnAudio"].forEach((id) => document.getElementById(id).classList.remove("has-file"));
         loadQuestions();
       } catch (err) {
         document.getElementById("askError").textContent = err.message;
       }
     });
 
-    document.getElementById("catSearch").addEventListener("input", (e) => {
-      renderCategoryList(e.target.value);
-    });
-
+    document.getElementById("catSearch").addEventListener("input", (e) => renderCategoryList(e.target.value));
     document.getElementById("categoryList").addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-cat]");
       if (!btn) return;
@@ -225,10 +216,11 @@
 
     (async function init() {
       me = await requireSession();
+      renderTopLogo();
       renderBottomNav("home");
-      bindMedia("mediaImage", "Image");
-      bindMedia("mediaVideo", "Video");
-      bindMedia("mediaAudio", "Audio");
+      bindMedia("mediaImage", "btnImage", "Image");
+      bindMedia("mediaVideo", "btnVideo", "Video");
+      bindMedia("mediaAudio", "btnAudio", "Audio");
 
       const { categories } = await api("/api/categories");
       allCategories = categories;
