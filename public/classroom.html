@@ -9,72 +9,63 @@
 <body>
   <div id="navHost"></div>
 
-  <main class="page" style="max-width:1100px;">
-    <!-- Intro state: shown before joining -->
-    <div id="introScreen" class="card intro-screen" hidden>
+  <div id="introScreen" class="page" hidden>
+    <div class="card" style="text-align:center;padding:2rem;">
       <h1 id="introTitle"></h1>
-      <p class="q-meta" id="introMeta" style="justify-content:center;"></p>
-      <button type="button" class="primary" id="joinBtn" style="margin-top:1rem;">Join class →</button>
+      <p class="q-meta" id="introMeta" style="justify-content:center;margin-top:0.5rem;"></p>
+      <button type="button" class="primary" id="joinBtn" style="margin-top:1.25rem;">Join class</button>
+    </div>
+  </div>
+
+  <div id="contentScreen" class="room-shell" hidden>
+    <header class="room-header">
+      <h1 id="roomTitle"></h1>
+      <div class="room-meta" id="roomMeta"></div>
+      <button type="button" class="danger small" id="endBtn" hidden style="margin-top:0.5rem;">End class</button>
+    </header>
+
+    <div id="endedBanner" class="card" hidden style="margin:0.75rem 1rem;">
+      <strong>This class has ended.</strong>
+      <p id="conclusionText" style="margin:0.4rem 0 0;color:var(--muted);"></p>
     </div>
 
-    <!-- Content state: the live room -->
-    <div id="contentScreen" hidden>
-      <div class="page-header">
-        <div>
-          <h1 id="roomTitle" style="margin-bottom:0.2rem;"></h1>
-          <span class="q-meta" id="roomMeta"></span>
-        </div>
-        <button type="button" class="danger" id="endBtn" hidden>End class</button>
+    <div class="room-questions" id="questionThread"></div>
+
+    <button type="button" class="room-side-toggle" id="sideToggle" aria-label="Open panel">☰</button>
+    <aside class="room-side-panel" id="sidePanel">
+      <h3>Milestones</h3>
+      <div id="milestoneList"></div>
+      <h3>Top questions</h3>
+      <div id="rankedList"></div>
+      <h3>Members (<span id="memberCount">0</span>)</h3>
+      <div id="memberList"></div>
+    </aside>
+
+    <div class="room-composer" id="composer">
+      <div class="reply-chip" id="replyChip">
+        <span id="replyLabel">Answering…</span>
+        <button type="button" id="replyClear">✕</button>
       </div>
-
-      <div id="endedBanner" class="ended-banner" hidden>
-        <strong>This class has ended.</strong>
-        <p id="conclusionText" style="margin:0.5rem 0 0;"></p>
+      <div class="room-composer-row">
+        <textarea id="composeBody" rows="1" placeholder="Ask a question…"></textarea>
+        <button type="button" class="primary small" id="composeSend">Send</button>
       </div>
-
-      <div class="classroom-layout">
-        <div>
-          <div class="chat-thread card" id="chatThread"></div>
-
-          <form id="postForm" class="card form-col" style="margin-top:0.8rem;">
-            <select id="postMode">
-              <option value="question">Ask a new question</option>
-            </select>
-            <textarea id="postBody" rows="2" placeholder="Type your question or answer…" required></textarea>
-            <p class="error" id="postError"></p>
-            <button type="submit" class="primary" style="align-self:flex-end;">Post</button>
-          </form>
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:0.9rem;">
-          <div class="sidebar-card">
-            <h3>🏅 Milestones</h3>
-            <div id="milestoneList" class="milestone-list"></div>
-          </div>
-          <div class="sidebar-card">
-            <h3>📊 Ranked questions</h3>
-            <div id="rankedList"></div>
-          </div>
-          <div class="sidebar-card">
-            <h3>👥 Members (<span id="memberCount">0</span>)</h3>
-            <div id="memberList"></div>
-          </div>
-        </div>
+      <div class="attach-row">
+        <label><input type="file" id="composeImage" accept="image/*" hidden />Image</label>
+        <label><input type="file" id="composeAudio" accept="audio/*" hidden />Audio</label>
+        <span id="composeFileLabel" style="font-size:0.75rem;color:var(--muted);"></span>
       </div>
+      <p class="error" id="composeError"></p>
     </div>
-  </main>
+  </div>
 
   <dialog id="endDialog">
-    <form id="endForm" class="form-col">
+    <form id="endForm" class="form-col card" style="min-width:min(360px,90vw);">
       <h3>End this class</h3>
-      <p class="hint" style="margin:0;">Write a short conclusion summarizing what the room covered.</p>
-      <textarea id="conclusionInput" rows="4" placeholder="Write the conclusion manually…"></textarea>
-      <button type="button" class="ghost" disabled title="AI-generated conclusions are still under development" style="align-self:flex-start;">
-        ✨ Generate with AI <span class="dev-tag">Coming soon</span>
-      </button>
-      <div class="dialog-actions">
+      <textarea id="conclusionInput" rows="4" placeholder="Optional conclusion…"></textarea>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
         <button type="button" class="ghost" id="endCancel">Cancel</button>
-        <button type="submit" class="danger">End &amp; publish conclusion</button>
+        <button type="submit" class="danger">End class</button>
       </div>
     </form>
   </dialog>
@@ -85,11 +76,11 @@
     let me = null;
     const classroomId = qs("id");
     let socket = null;
-    let latest = null; // last loaded classroom payload
+    let answeringId = null;
+    let composeFile = null;
 
     async function load() {
       const data = await api(`/api/classrooms/${classroomId}`);
-      latest = data;
       render(data);
     }
 
@@ -104,7 +95,7 @@
         document.getElementById("introMeta").innerHTML = `
           by ${escapeHtml(classroom.creator_name)}
           ${classroom.category ? `<span class="badge category">${escapeHtml(classroom.category)}</span>` : ""}
-          <span class="badge">${members.length} member${members.length === 1 ? "" : "s"}</span>
+          <span class="badge">${members.length} members</span>
           <span class="badge">${isOpen ? "● live" : "ended"}</span>`;
         return;
       }
@@ -113,121 +104,129 @@
       document.getElementById("contentScreen").hidden = false;
       document.getElementById("roomTitle").textContent = classroom.title;
       document.getElementById("roomMeta").innerHTML = `
-        by ${escapeHtml(classroom.creator_name)}
+        <span>by ${escapeHtml(classroom.creator_name)}</span>
         ${classroom.category ? `<span class="badge category">${escapeHtml(classroom.category)}</span>` : ""}
-        <span class="badge">${isOpen ? "● live" : "ended"}</span>`;
-
+        <span class="badge">${isOpen ? "● Live" : "Closed"}</span>`;
       document.getElementById("endBtn").hidden = !(isCreator && isOpen);
-      document.getElementById("postForm").hidden = !isOpen;
-
+      document.getElementById("composer").style.display = isOpen ? "" : "none";
       document.getElementById("endedBanner").hidden = isOpen;
-      if (!isOpen) {
-        document.getElementById("conclusionText").textContent =
-          classroom.conclusion || "The creator ended this class without adding a written conclusion.";
-      }
+      if (!isOpen) document.getElementById("conclusionText").textContent = classroom.conclusion || "No written conclusion.";
 
-      // Chat thread: questions in chronological order, each followed by its answers.
-      const thread = document.getElementById("chatThread");
+      const thread = document.getElementById("questionThread");
       if (!questions.length) {
-        thread.innerHTML = `<p class="empty-note">No questions posted yet — ask the first one below.</p>`;
+        thread.innerHTML = `<p class="empty-note">No questions yet — ask the first one below.</p>`;
       } else {
-        thread.innerHTML = questions
-          .map(
-            (q) => `
-          <div class="q-card" style="border-bottom:1px solid var(--border); padding-bottom:0.6rem;">
-            <div class="vote-col">
-              <button type="button" class="vote-btn" data-vote="1" data-type="question" data-id="${q.id}">▲</button>
-              <span class="vote-score">${q.score}</span>
-              <button type="button" class="vote-btn" data-vote="-1" data-type="question" data-id="${q.id}">▼</button>
+        thread.innerHTML = questions.map(q => `
+          <div class="room-q ${answeringId === q.id ? "answering" : ""}" data-id="${q.id}">
+            <div class="rq-title">${escapeHtml(q.title)}</div>
+            ${renderMediaThumb(q.media_type, q.media_url)}
+            <div class="q-meta">
+              <span>${escapeHtml(q.username)}</span>
+              <span>${timeAgo(q.created_at)}</span>
+              <span>${q.answer_count || 0} answers</span>
+              <span>↑ ${q.score ?? 0}</span>
             </div>
-            <div class="q-body">
-              <p class="q-title" style="font-size:0.95rem;">${escapeHtml(q.title)}</p>
-              <div class="q-meta"><span>${escapeHtml(q.username)}</span><span>${timeAgo(q.created_at)}</span><span>${q.answer_count} answer${q.answer_count === 1 ? "" : "s"}</span></div>
+            <div class="rq-actions">
+              ${isOpen ? `<button type="button" class="answer-btn" data-answer="${q.id}">Answer</button>` : ""}
+              <a href="/question.html?id=${q.id}" style="font-size:0.8rem;color:var(--muted);">View thread</a>
             </div>
-          </div>`
-          )
-          .join("");
-        thread.querySelectorAll(".vote-btn").forEach(attachVoteHandler);
+          </div>`).join("");
+        thread.querySelectorAll("[data-answer]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            answeringId = Number(btn.dataset.answer);
+            const q = questions.find(x => x.id === answeringId);
+            document.getElementById("replyChip").classList.add("show");
+            document.getElementById("replyLabel").textContent = `Answering: ${(q && q.title) || ""}`;
+            document.getElementById("composeBody").placeholder = "Write your answer…";
+            document.getElementById("composeBody").focus();
+            render({ classroom, isMember, members, questions, milestones });
+          });
+        });
       }
 
-      // Ranked list (most rated -> least)
-      const ranked = [...questions].sort((a, b) => b.score - a.score);
-      document.getElementById("rankedList").innerHTML = ranked.length
-        ? ranked.map((q) => `<div class="q-meta" style="justify-content:space-between; padding:0.25rem 0;"><span>${escapeHtml(q.title)}</span><strong>${q.score}</strong></div>`).join("")
-        : `<p class="empty-note" style="padding:0.5rem 0;">No questions yet.</p>`;
-
-      // Milestones
       document.getElementById("milestoneList").innerHTML = milestones.length
-        ? milestones
-            .map(
-              (m) => `
-          <div class="answer milestone">
-            <div class="milestone-tag">⭐ ${m.score} pts · re: ${escapeHtml(m.question_title)}</div>
-            <p style="margin:0.3rem 0 0; font-size:0.9rem;">${escapeHtml(m.body)}</p>
-            <div class="q-meta">${escapeHtml(m.username)}</div>
-          </div>`
-            )
-            .join("")
-        : `<p class="empty-note" style="padding:0.5rem 0;">No highly-rated answers yet.</p>`;
+        ? milestones.map(m => `<div style="padding:0.4rem 0;border-bottom:1px solid var(--border);font-size:0.85rem;">
+            <strong>⭐ ${m.score}</strong> ${escapeHtml(m.body.slice(0, 80))}
+            <div class="q-meta">${escapeHtml(m.username)}</div></div>`).join("")
+        : `<p class="empty-note" style="padding:0.5rem 0;">None yet</p>`;
 
-      // Members
+      const ranked = [...questions].sort((a, b) => b.score - a.score);
+      document.getElementById("rankedList").innerHTML = ranked.slice(0, 5).map(q =>
+        `<div class="q-meta" style="justify-content:space-between;padding:0.25rem 0;"><span>${escapeHtml(q.title.slice(0, 40))}</span><strong>${q.score}</strong></div>`
+      ).join("") || `<p class="empty-note" style="padding:0.5rem 0;">None</p>`;
+
       document.getElementById("memberCount").textContent = members.length;
-      document.getElementById("memberList").innerHTML = members
-        .map((m) => `<div class="member-chip"><img class="avatar-sm" src="${m.avatar_url || "/img/default-avatar.svg"}" alt="" /> ${escapeHtml(m.username)}</div>`)
-        .join("");
-
-      // Post form's "answer to" options
-      const modeSelect = document.getElementById("postMode");
-      const prev = modeSelect.value;
-      modeSelect.innerHTML =
-        `<option value="question">Ask a new question</option>` +
-        questions.map((q) => `<option value="answer:${q.id}">Answer: ${escapeHtml(q.title.slice(0, 60))}</option>`).join("");
-      if ([...modeSelect.options].some((o) => o.value === prev)) modeSelect.value = prev;
+      document.getElementById("memberList").innerHTML = members.map(m =>
+        `<div class="member-chip" style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0;">
+          <img class="avatar-sm" src="${m.avatar_thumb || m.avatar_url || "/img/default-avatar.svg"}" style="width:22px;height:22px;" alt="" />
+          <a href="/profile.html?id=${m.id}">${escapeHtml(m.username)}</a></div>`
+      ).join("");
     }
 
-    function attachVoteHandler(btn) {
-      btn.addEventListener("click", async () => {
-        try {
-          await api("/api/vote", {
-            method: "POST",
-            body: JSON.stringify({ targetType: btn.dataset.type, targetId: Number(btn.dataset.id), value: Number(btn.dataset.vote) }),
-          });
-          load();
-        } catch (err) {
-          alert(err.message);
-        }
-      });
-    }
-
-    document.getElementById("joinBtn").addEventListener("click", async () => {
-      await api(`/api/classrooms/${classroomId}/join`, { method: "POST" });
-      socket.emit("join_classroom", Number(classroomId));
+    document.getElementById("sideToggle").addEventListener("click", () => {
+      document.getElementById("sidePanel").classList.toggle("open");
+    });
+    document.getElementById("replyClear").addEventListener("click", () => {
+      answeringId = null;
+      document.getElementById("replyChip").classList.remove("show");
+      document.getElementById("composeBody").placeholder = "Ask a question…";
       load();
     });
 
-    document.getElementById("postForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      document.getElementById("postError").textContent = "";
-      const mode = document.getElementById("postMode").value;
-      const body = document.getElementById("postBody").value.trim();
+    function bindComposeFile(id) {
+      document.getElementById(id).addEventListener("change", e => {
+        composeFile = e.target.files[0] || null;
+        document.getElementById("composeFileLabel").textContent = composeFile ? composeFile.name : "";
+      });
+    }
+    bindComposeFile("composeImage");
+    bindComposeFile("composeAudio");
+
+    document.getElementById("composeSend").addEventListener("click", async () => {
+      const body = document.getElementById("composeBody").value.trim();
+      document.getElementById("composeError").textContent = "";
+      if (!body && !composeFile) {
+        document.getElementById("composeError").textContent = "Write something first.";
+        return;
+      }
       try {
-        if (mode === "question") {
-          await api("/api/questions", { method: "POST", body: JSON.stringify({ title: body, classroomId: Number(classroomId) }) });
+        if (answeringId) {
+          const fd = new FormData();
+          fd.append("body", body || "(media)");
+          if (composeFile) fd.append("media", composeFile);
+          const res = await fetch(`/api/questions/${answeringId}/answers`, { method: "POST", body: fd, credentials: "same-origin" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed");
+          answeringId = null;
+          document.getElementById("replyChip").classList.remove("show");
+          document.getElementById("composeBody").placeholder = "Ask a question…";
         } else {
-          const questionId = mode.split(":")[1];
-          await api(`/api/questions/${questionId}/answers`, { method: "POST", body: JSON.stringify({ body }) });
+          const fd = new FormData();
+          fd.append("title", body);
+          fd.append("classroomId", String(classroomId));
+          if (composeFile) fd.append("media", composeFile);
+          const res = await fetch("/api/questions", { method: "POST", body: fd, credentials: "same-origin" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed");
         }
-        document.getElementById("postBody").value = "";
+        document.getElementById("composeBody").value = "";
+        composeFile = null;
+        document.getElementById("composeFileLabel").textContent = "";
         load();
       } catch (err) {
-        document.getElementById("postError").textContent = err.message;
+        document.getElementById("composeError").textContent = err.message;
       }
+    });
+
+    document.getElementById("joinBtn").addEventListener("click", async () => {
+      await api(`/api/classrooms/${classroomId}/join`, { method: "POST" });
+      if (socket) socket.emit("join_classroom", Number(classroomId));
+      load();
     });
 
     document.getElementById("endBtn").addEventListener("click", () => document.getElementById("endDialog").showModal());
     document.getElementById("endCancel").addEventListener("click", () => document.getElementById("endDialog").close());
-
-    document.getElementById("endForm").addEventListener("submit", async (e) => {
+    document.getElementById("endForm").addEventListener("submit", async e => {
       e.preventDefault();
       await api(`/api/classrooms/${classroomId}/end`, {
         method: "POST",
@@ -240,7 +239,8 @@
     (async function init() {
       me = await requireSession();
       renderNav("/classrooms.html");
-
+      renderBottomNav("classes");
+      ensureLightbox();
       socket = io();
       socket.on("connect", () => socket.emit("join_classroom", Number(classroomId)));
       socket.on("classroom_question", load);
@@ -248,7 +248,6 @@
       socket.on("classroom_vote", load);
       socket.on("classroom_member_joined", load);
       socket.on("classroom_ended", load);
-
       load();
     })();
   </script>
