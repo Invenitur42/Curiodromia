@@ -12,7 +12,7 @@
   <main class="page">
     <div id="questionCard"></div>
 
-    <h2 style="font-size:1.1rem;" id="answersHeading">Answers</h2>
+    <h2 style="font-size:1.05rem;font-weight:600;margin:1.25rem 0 0.65rem;" id="answersHeading">Answers</h2>
     <div class="card" id="answersCard"></div>
 
     <form id="answerForm" class="card form-col">
@@ -39,14 +39,17 @@
     async function load() {
       const { question, answers, myVotes } = await api(`/api/questions/${questionId}`);
       const myQVote = (myVotes.find((v) => v.target_type === "question" && v.target_id === question.id) || {}).value || 0;
+      const thumb = question.avatar_thumb || question.avatar_url || "/img/default-avatar.svg";
 
       document.getElementById("questionCard").innerHTML = `
         <div class="card q-card">
           ${voteButtonsHtml("question", question.id, question.score, myQVote)}
           <div class="q-body">
             <p class="q-title">${escapeHtml(question.title)}</p>
-            ${question.body ? `<p>${escapeHtml(question.body)}</p>` : ""}
+            ${question.body ? `<p style="color:var(--muted);margin-bottom:0.5rem;">${escapeHtml(question.body)}</p>` : ""}
+            ${renderMediaBlock(question.media_type, question.media_url, { large: true })}
             <div class="q-meta">
+              <img src="${escapeHtml(thumb)}" class="avatar-sm" alt="" style="width:22px;height:22px;" />
               <span>${escapeHtml(question.username)}</span>
               <span>${timeAgo(question.created_at)}</span>
               ${question.category ? `<span class="badge category">${escapeHtml(question.category)}</span>` : ""}
@@ -56,10 +59,9 @@
 
       document.getElementById("answersHeading").textContent = `${answers.length} Answer${answers.length === 1 ? "" : "s"}`;
       document.getElementById("answersCard").innerHTML = answers.length
-        ? answers
-            .map((a) => {
-              const myAVote = (myVotes.find((v) => v.target_type === "answer" && v.target_id === a.id) || {}).value || 0;
-              return `
+        ? answers.map((a) => {
+            const myAVote = (myVotes.find((v) => v.target_type === "answer" && v.target_id === a.id) || {}).value || 0;
+            return `
               <div class="answer">
                 ${voteButtonsHtml("answer", a.id, a.score, myAVote)}
                 <div class="q-body">
@@ -67,8 +69,7 @@
                   <div class="q-meta"><span>${escapeHtml(a.username)}</span><span>${timeAgo(a.created_at)}</span></div>
                 </div>
               </div>`;
-            })
-            .join("")
+          }).join("")
         : `<p class="empty-note">No answers yet — be the first to help.</p>`;
 
       attachVoteHandlers();
@@ -110,6 +111,7 @@
     (async function init() {
       me = await requireSession();
       renderNav("/home.html");
+      renderBottomNav("home");
       load();
     })();
   </script>
