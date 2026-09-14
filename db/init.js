@@ -3,19 +3,25 @@ const fs = require("fs");
 const Database = require("better-sqlite3");
 const bcrypt = require("bcryptjs");
 
-const DB_PATH = path.join(__dirname, "curiodromia.sqlite");
+// Prefer a writable data dir on hosts like Railway (set DATA_DIR=/data + volume)
+const dataDir = process.env.DATA_DIR || __dirname;
+try {
+  fs.mkdirSync(dataDir, { recursive: true });
+} catch (_) {}
+
+const DB_PATH = path.join(dataDir, "curiodromia.sqlite");
 const SCHEMA_PATH = path.join(__dirname, "schema.sql");
 
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
-db.exec(fs.readFileSync(SCHEMA_PATH, "utf8"));
-
-// ---------------------------------------------------------------
-// Seed categories + curated resources + a little demo content so
-// the homepage isn't empty on a fresh clone. Runs once, guarded by
-// checking whether the categories table is already populated.
-// ---------------------------------------------------------------
+let db;
+try {
+  db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+  db.exec(fs.readFileSync(SCHEMA_PATH, "utf8"));
+} catch (err) {
+  console.error("Failed to open SQLite database at", DB_PATH, err);
+  throw err;
+}
 
 const CATEGORIES = [
   ["web-dev", "Web Development"],
@@ -65,9 +71,10 @@ const RESOURCES = {
   ],
 };
 
-const categoryCount = db.prepare("SELECT COUNT(*) as n FROM categories").get().n;
+function seedIfEmpty() {
+  const categoryCount = db.prepare("SELECT COUNT(*) as n FROM categories").get().n;
+  if (categoryCount > 0) return;
 
-if (categoryCount === 0) {
   const insertCategory = db.prepare("INSERT INTO categories (slug, label) VALUES (?, ?)");
   const insertResource = db.prepare(
     "INSERT INTO resources (category, title, description, url) VALUES (?, ?, ?, ?)"
@@ -113,10 +120,9 @@ if (categoryCount === 0) {
         "Every tutorial normalizes features 'just in case'. Is there a rule of thumb for when it actually matters?",
         "data-science"
       ).lastInsertRowid;
-    db.prepare("INSERT INTO votes (target_type, target_id, user_id, value) VALUES ('question', ?, ?, 1)").run(
-      q2,
-      demoId
-    );
+    db.prepare(
+      "INSERT INTO votes (target_type, target_id, user_id, value) VALUES ('question', ?, ?, 1)"
+    ).run(q2, demoId);
 
     const c1 = db
       .prepare(
@@ -130,13 +136,16 @@ if (categoryCount === 0) {
   console.log("Seeded categories, resources and demo content (user: demo / DemoPass123).");
 }
 
-/** Close the DB cleanly so better-sqlite3 Statement destructors don't run after V8 teardown. */
+try {
+  seedIfEmpty();
+} catch (err) {
+  console.error("Seed failed:", err);
+}
+
 function closeDb() {
   try {
     if (db && db.open) db.close();
-  } catch (err) {
-    // ignore double-close / already-closed
-  }
+  } catch (_) {}
 }
 
 module.exports = db;

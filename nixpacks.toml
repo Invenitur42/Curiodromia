@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "python311", "gcc", "gnumake"]
+
+[phases.install]
+cmds = ["npm ci || npm install", "npm rebuild better-sqlite3 --build-from-source"]
+
+[start]
+cmd = "node server.js"
