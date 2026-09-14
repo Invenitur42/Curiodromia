@@ -9,15 +9,14 @@
 <body>
   <div class="app-shell">
     <div class="app-layout">
-      <!-- Left: Categories -->
       <aside class="sidebar-left">
         <h2>Category</h2>
+        <input type="search" id="catSearch" placeholder="Search…" style="width:100%;margin-bottom:0.6rem;font-size:0.85rem;" />
         <ul class="category-list" id="categoryList">
           <li><button type="button" class="active" data-cat="">All</button></li>
         </ul>
       </aside>
 
-      <!-- Center: Classes list -->
       <main class="main-col">
         <div class="classes-header">
           <h1>Classes</h1>
@@ -30,20 +29,22 @@
         <div id="classroomList"></div>
       </main>
 
-      <!-- Right: Create -->
-      <aside class="sidebar-right">
+      <aside class="sidebar-right" id="createSidebar">
         <h2>Create</h2>
         <div class="create-panel">
           <textarea id="createTitle" placeholder="What topic or question do you want to explore?" maxlength="200"></textarea>
           <select id="createCategory"></select>
-          <div class="upload-zone" id="bannerZone" title="Banner upload UI (ready for future)">
-            🖼 Upload Class Banner<br>
-            <span style="font-size:0.75rem;opacity:0.7">JPG, PNG or GIF · Max 5MB</span>
-          </div>
+          <label class="upload-zone" id="bannerZone">
+            <input type="file" id="bannerInput" accept="image/*" hidden />
+            <span id="bannerLabel">🖼 Upload Class Banner<br><span style="font-size:0.75rem;opacity:0.7">JPG, PNG or GIF · Max 5MB</span></span>
+          </label>
           <button type="button" class="primary" id="createBtn" style="width:100%">Create Class</button>
           <p class="error" id="createError" style="min-height:1.2em;"></p>
         </div>
       </aside>
+    </div>
+    <div class="mobile-post-bar">
+      <button type="button" class="primary" id="mobileCreateOpen">+ Create class</button>
     </div>
   </div>
 
@@ -51,21 +52,27 @@
   <script>
     let currentCategory = "";
     let currentSort = "most";
+    let bannerFile = null;
+    let allCategories = [];
 
-    const categoryIcons = {
-      psychology: "🧠", physics: "⚛️", maths: "π", "self-care": "♡",
-      philosophy: "⌛", biology: "🍃", creativity: "💡", history: "🏛",
-      language: "文", technology: "⚙", art: "🎨",
-    };
-
-    const thumbEmojis = ["🧠", "🌌", "△", "🌱", "🌀", "📚", "🔬", "💭"];
+    function renderCats(filter = "") {
+      const list = document.getElementById("categoryList");
+      const q = filter.toLowerCase();
+      list.innerHTML = `<li><button type="button" class="${currentCategory===""?"active":""}" data-cat="">All</button></li>`;
+      allCategories
+        .filter((c) => !q || c.label.toLowerCase().includes(q))
+        .forEach((c) => {
+          const li = document.createElement("li");
+          li.innerHTML = `<button type="button" data-cat="${escapeHtml(c.slug)}" class="${currentCategory===c.slug?"active":""}">${escapeHtml(c.label)}</button>`;
+          list.appendChild(li);
+        });
+    }
 
     async function load() {
       const params = new URLSearchParams();
       if (currentCategory) params.set("category", currentCategory);
       const { classrooms } = await api(`/api/classrooms?${params}`);
       let list = classrooms.slice();
-      // Approximate "most/least" by member_count then created
       list.sort((a, b) => (b.member_count || 0) - (a.member_count || 0));
       if (currentSort === "least") list.reverse();
       if (currentSort === "rec") {
@@ -83,19 +90,17 @@
         el.innerHTML = `<p class="empty-note">No classes yet — create the first one.</p>`;
         return;
       }
-      el.innerHTML = classrooms.map((c, i) => {
-        const emoji = thumbEmojis[i % thumbEmojis.length];
-        const score = c.member_count || 0;
+      el.innerHTML = classrooms.map((c) => {
+        const thumb = c.banner_url
+          ? `<img src="${escapeHtml(c.banner_url)}" class="thumb" alt="" style="object-fit:cover;" />`
+          : `<div class="thumb">◎</div>`;
         return `
         <article class="class-card">
-          <div class="thumb">${emoji}</div>
+          ${thumb}
           <div class="info">
             <div class="title">${escapeHtml(c.title)}</div>
-            <div class="desc">${c.category ? escapeHtml(c.category) : "Open exploration"} · ${c.status === "open" ? "Live" : "Ended"}</div>
-            <div class="meta">
-              <span>↑ ${score}</span>
-              <span>by ${escapeHtml(c.creator_name || "?")}</span>
-            </div>
+            <div class="desc">${c.category ? escapeHtml(c.category) : "Open"} · ${c.status === "open" ? "Live" : "Ended"}</div>
+            <div class="meta"><span>↑ ${c.member_count || 0}</span><span>by ${escapeHtml(c.creator_name || "?")}</span></div>
           </div>
           <a class="enter-btn" href="/classroom.html?id=${c.id}">${c.status === "open" ? "Enter" : "View"}</a>
         </article>`;
@@ -111,6 +116,13 @@
       });
     });
 
+    document.getElementById("bannerInput").addEventListener("change", (e) => {
+      bannerFile = e.target.files[0] || null;
+      document.getElementById("bannerLabel").innerHTML = bannerFile
+        ? `✓ ${escapeHtml(bannerFile.name)}`
+        : `🖼 Upload Class Banner<br><span style="font-size:0.75rem;opacity:0.7">JPG, PNG or GIF · Max 5MB</span>`;
+    });
+
     document.getElementById("createBtn").addEventListener("click", async () => {
       const title = document.getElementById("createTitle").value.trim();
       const category = document.getElementById("createCategory").value;
@@ -120,42 +132,43 @@
         return;
       }
       try {
-        const { id } = await api("/api/classrooms", {
-          method: "POST",
-          body: JSON.stringify({ title, category: category || null }),
-        });
-        location.href = `/classroom.html?id=${id}`;
+        const fd = new FormData();
+        fd.append("title", title);
+        if (category) fd.append("category", category);
+        if (bannerFile) fd.append("banner", bannerFile);
+        const res = await fetch("/api/classrooms", { method: "POST", body: fd, credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
+        location.href = `/classroom.html?id=${data.id}`;
       } catch (err) {
         document.getElementById("createError").textContent = err.message;
       }
     });
 
+    document.getElementById("catSearch").addEventListener("input", (e) => renderCats(e.target.value));
+    document.getElementById("categoryList").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-cat]");
+      if (!btn) return;
+      currentCategory = btn.dataset.cat || "";
+      renderCats(document.getElementById("catSearch").value);
+      load();
+    });
+
+    document.getElementById("mobileCreateOpen").addEventListener("click", () => {
+      document.getElementById("createSidebar").classList.toggle("mobile-open");
+    });
+
     (async function init() {
       await requireSession();
       renderBottomNav("classes");
-
       const { categories } = await api("/api/categories");
-      const list = document.getElementById("categoryList");
+      allCategories = categories;
+      renderCats();
       const sel = document.getElementById("createCategory");
       sel.innerHTML = `<option value="">Category (optional)</option>`;
-
       categories.forEach((c) => {
-        const icon = categoryIcons[c.slug] || "•";
-        const li = document.createElement("li");
-        li.innerHTML = `<button type="button" data-cat="${escapeHtml(c.slug)}"><span class="icon">${icon}</span>${escapeHtml(c.label)}</button>`;
-        list.appendChild(li);
         sel.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(c.slug)}">${escapeHtml(c.label)}</option>`);
       });
-
-      list.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-cat]");
-        if (!btn) return;
-        list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentCategory = btn.dataset.cat || "";
-        load();
-      });
-
       load();
     })();
   </script>
