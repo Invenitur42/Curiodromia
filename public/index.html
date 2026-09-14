@@ -6,7 +6,6 @@
 <title>Curiodromia – Login</title>
 <link rel="stylesheet" href="/css/style.css" />
 <style>
-  /* Login-specific styles matching the mockup */
   .login-screen {
     min-height: 100vh;
     display: flex;
@@ -14,6 +13,7 @@
     justify-content: center;
     background: #000;
     position: relative;
+    padding: 1rem;
   }
   .login-screen::before {
     content: "";
@@ -25,24 +25,21 @@
     pointer-events: none;
   }
   .login-card {
-    width: min(360px, 92vw);
+    width: min(360px, 100%);
     background: #0a0a0a;
     border: 1px solid #2a2a2a;
     border-radius: 16px;
     padding: 2.5rem 2rem 1.75rem;
     position: relative;
     z-index: 1;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.03);
   }
   .login-logo {
-    font-family: "Segoe Script", "Brush Script MT", "Comic Sans MS", cursive;
+    font-family: "Segoe Script", "Brush Script MT", cursive;
     font-size: 2.4rem;
     font-weight: 400;
     text-align: center;
     margin: 0 0 2rem;
     color: #f0f0f0;
-    letter-spacing: 0.02em;
-    line-height: 1.1;
   }
   .login-field {
     display: flex;
@@ -53,53 +50,48 @@
     border-radius: 10px;
     padding: 0.7rem 1rem;
     margin-bottom: 0.85rem;
-    transition: border-color 0.15s;
   }
-  .login-field:focus-within {
-    border-color: #555;
-  }
+  .login-field:focus-within { border-color: #555; }
   .login-field svg {
-    width: 18px;
-    height: 18px;
-    stroke: #888;
-    fill: none;
-    stroke-width: 1.8;
-    flex-shrink: 0;
+    width: 18px; height: 18px;
+    stroke: #888; fill: none; stroke-width: 1.8; flex-shrink: 0;
   }
   .login-field input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    outline: none;
-    color: #e8e8e8;
-    font-size: 0.95rem;
-    padding: 0;
+    flex: 1; background: transparent; border: none; outline: none;
+    color: #e8e8e8; font-size: 0.95rem; padding: 0;
   }
-  .login-field input::placeholder {
-    color: #666;
-  }
-  .login-enter {
-    width: 100%;
+  .login-field input::placeholder { color: #666; }
+  .login-actions {
+    display: flex;
+    gap: 0.6rem;
     margin-top: 0.5rem;
+  }
+  .login-actions button {
+    flex: 1;
     padding: 0.85rem;
-    background: #f5f5f5;
-    color: #111;
-    border: none;
     border-radius: 10px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.15s;
+    border: none;
   }
-  .login-enter:hover { opacity: 0.92; }
-  .login-enter:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-enter {
+    background: #f5f5f5;
+    color: #111;
+  }
+  .btn-return {
+    background: transparent;
+    color: #ccc;
+    border: 1px solid #444 !important;
+  }
+  .btn-enter:hover, .btn-return:hover { opacity: 0.9; }
+  .btn-enter:disabled, .btn-return:disabled { opacity: 0.45; cursor: not-allowed; }
   .login-forgot {
     display: block;
     text-align: center;
     margin-top: 1.1rem;
     font-size: 0.82rem;
     color: #777;
-    text-decoration: none;
   }
   .login-forgot:hover { color: #aaa; }
   .login-error {
@@ -113,7 +105,53 @@
     text-align: center;
     font-size: 0.75rem;
     color: #555;
-    margin-top: 1.25rem;
+    margin-top: 1.1rem;
+  }
+  /* Modals */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 1rem;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 14px;
+    padding: 1.5rem;
+    width: min(360px, 100%);
+  }
+  .modal h3 { margin: 0 0 1rem; font-size: 1.1rem; }
+  .modal label {
+    display: block;
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.3rem;
+  }
+  .modal input {
+    width: 100%;
+    margin-bottom: 0.85rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #111;
+    color: #eee;
+  }
+  .modal .modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+  .modal .modal-actions button {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
   }
 </style>
 </head>
@@ -125,54 +163,171 @@
       <form id="loginForm">
         <div class="login-field">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
-          <input type="text" id="username" name="username" placeholder="Username" autocomplete="username" required maxlength="20" />
+          <input type="text" id="username" placeholder="Username" autocomplete="username" required maxlength="20" />
         </div>
         <div class="login-field">
           <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-          <input type="password" id="password" name="password" placeholder="Password" autocomplete="current-password" required minlength="6" />
+          <input type="password" id="password" placeholder="Password" autocomplete="current-password" required minlength="6" />
         </div>
 
         <p class="login-error" id="loginError"></p>
 
-        <button type="submit" class="login-enter" id="enterBtn">Enter</button>
+        <div class="login-actions">
+          <button type="button" class="btn-enter" id="enterBtn">Enter</button>
+          <button type="button" class="btn-return" id="returnBtn">Return</button>
+        </div>
       </form>
 
       <a href="#" class="login-forgot" id="forgotLink">Forgot password?</a>
-      <p class="login-hint">New here? Just enter a username &amp; password to create your account.</p>
+      <p class="login-hint">Enter = create new account · Return = login to existing</p>
     </div>
   </section>
 
+  <!-- Forgot password modal -->
+  <div class="modal-backdrop" id="forgotModal">
+    <div class="modal">
+      <h3>Recover access</h3>
+      <label>Username</label>
+      <input type="text" id="forgotUser" maxlength="20" />
+      <label>First Pet ID (pet name + 4 digits)</label>
+      <input type="text" id="forgotFpid" placeholder="e.g. Max1234" />
+      <p class="login-error" id="forgotError"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-return" id="forgotCancel">Cancel</button>
+        <button type="button" class="btn-enter" id="forgotSubmit">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FPID setup modal (new accounts) -->
+  <div class="modal-backdrop" id="fpidModal">
+    <div class="modal">
+      <h3>Security question</h3>
+      <p style="font-size:0.85rem;color:#888;margin:0 0 1rem;">Set your First Pet ID for account recovery. Format: pet name + 4 digits (e.g. Luna4821)</p>
+      <label>First Pet ID</label>
+      <input type="text" id="fpidInput" placeholder="Name + 4 digits" maxlength="40" />
+      <p class="login-error" id="fpidError"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-enter" id="fpidSubmit">Continue to setup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset password modal -->
+  <div class="modal-backdrop" id="resetModal">
+    <div class="modal">
+      <h3>Set new password</h3>
+      <label>New password</label>
+      <input type="password" id="resetPass" minlength="6" />
+      <p class="login-error" id="resetError"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-enter" id="resetSubmit">Save &amp; login</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/common.js"></script>
   <script>
-    document.getElementById("forgotLink").addEventListener("click", (e) => {
-      e.preventDefault();
-      alert("Password recovery is not yet available. Remember your password or create a new account with a different username.");
-    });
+    let pendingResetUser = null;
 
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
+    function setBusy(busy) {
+      document.getElementById("enterBtn").disabled = busy;
+      document.getElementById("returnBtn").disabled = busy;
+    }
+
+    async function doAuth(mode) {
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
       const errEl = document.getElementById("loginError");
-      const btn = document.getElementById("enterBtn");
       errEl.textContent = "";
-      btn.disabled = true;
-
+      setBusy(true);
       try {
         const data = await api("/api/login", {
           method: "POST",
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, mode }),
         });
-        // First login (new account or incomplete setup) → onboarding
-        // Returning user with completed setup → home feed
+        if (data.needsFpid) {
+          document.getElementById("fpidModal").classList.add("open");
+          setBusy(false);
+          return;
+        }
         location.href = data.needsOnboarding ? "/onboarding.html" : "/home.html";
       } catch (err) {
         errEl.textContent = err.message || "Login failed";
-        btn.disabled = false;
+        setBusy(false);
+      }
+    }
+
+    document.getElementById("enterBtn").addEventListener("click", () => doAuth("enter"));
+    document.getElementById("returnBtn").addEventListener("click", () => doAuth("return"));
+
+    document.getElementById("loginForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      doAuth("return");
+    });
+
+    // Forgot password
+    document.getElementById("forgotLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("forgotError").textContent = "";
+      document.getElementById("forgotModal").classList.add("open");
+    });
+    document.getElementById("forgotCancel").addEventListener("click", () => {
+      document.getElementById("forgotModal").classList.remove("open");
+    });
+    document.getElementById("forgotSubmit").addEventListener("click", async () => {
+      const username = document.getElementById("forgotUser").value.trim();
+      const fpid = document.getElementById("forgotFpid").value.trim();
+      const errEl = document.getElementById("forgotError");
+      errEl.textContent = "";
+      try {
+        await api("/api/recover", {
+          method: "POST",
+          body: JSON.stringify({ username, fpid }),
+        });
+        pendingResetUser = username;
+        document.getElementById("forgotModal").classList.remove("open");
+        document.getElementById("resetModal").classList.add("open");
+      } catch (err) {
+        errEl.textContent = err.message;
       }
     });
 
-    // Already logged in? Skip login screen.
+    document.getElementById("resetSubmit").addEventListener("click", async () => {
+      const password = document.getElementById("resetPass").value;
+      const errEl = document.getElementById("resetError");
+      errEl.textContent = "";
+      try {
+        await api("/api/reset-password", {
+          method: "POST",
+          body: JSON.stringify({ username: pendingResetUser, password }),
+        });
+        location.href = "/home.html";
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+    });
+
+    // FPID for new accounts
+    document.getElementById("fpidSubmit").addEventListener("click", async () => {
+      const fpid = document.getElementById("fpidInput").value.trim();
+      const errEl = document.getElementById("fpidError");
+      errEl.textContent = "";
+      if (!/^[A-Za-z]{2,20}\d{4}$/.test(fpid)) {
+        errEl.textContent = "Format: letters (pet name) + exactly 4 digits";
+        return;
+      }
+      try {
+        await api("/api/fpid", {
+          method: "POST",
+          body: JSON.stringify({ fpid }),
+        });
+        location.href = "/onboarding.html";
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+    });
+
     api("/api/me").then(({ user, needsOnboarding }) => {
       if (user) location.href = needsOnboarding ? "/onboarding.html" : "/home.html";
     }).catch(() => {});
