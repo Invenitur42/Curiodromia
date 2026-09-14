@@ -11,7 +11,26 @@ const { db, reputationTier, userReputation } = require("./db/queries");
 
 const PORT = process.env.PORT || 4000;
 const USERS_DIR = path.join(__dirname, "public", "uploads", "users");
+const MEDIA_DIR = path.join(__dirname, "public", "uploads", "media");
+const BANNERS_DIR = path.join(__dirname, "public", "uploads", "banners");
 fs.mkdirSync(USERS_DIR, { recursive: true });
+fs.mkdirSync(MEDIA_DIR, { recursive: true });
+fs.mkdirSync(BANNERS_DIR, { recursive: true });
+
+// Migrate schema columns if missing (safe for existing DBs)
+try {
+  const cols = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+  if (!cols.includes("avatar_thumb")) db.exec("ALTER TABLE users ADD COLUMN avatar_thumb TEXT");
+} catch (_) {}
+try {
+  const qcols = db.prepare("PRAGMA table_info(questions)").all().map((c) => c.name);
+  if (!qcols.includes("media_type")) db.exec("ALTER TABLE questions ADD COLUMN media_type TEXT");
+  if (!qcols.includes("media_url")) db.exec("ALTER TABLE questions ADD COLUMN media_url TEXT");
+} catch (_) {}
+try {
+  const ccols = db.prepare("PRAGMA table_info(classrooms)").all().map((c) => c.name);
+  if (!ccols.includes("banner_url")) db.exec("ALTER TABLE classrooms ADD COLUMN banner_url TEXT");
+} catch (_) {}
 
 const app = express();
 const server = http.createServer(app);
@@ -29,8 +48,6 @@ const sessionMiddleware = session({
 app.use(sessionMiddleware);
 io.engine.use(sessionMiddleware);
 
-// ---------------- helpers ----------------
-
 function requireAuth(req, res, next) {
   if (!req.session.userId) return res.status(401).json({ error: "Not logged in" });
   next();
@@ -43,6 +60,7 @@ function publicUser(row) {
     id: row.id,
     username: row.username,
     avatar_url: row.avatar_url,
+    avatar_thumb: row.avatar_thumb || row.avatar_url,
     mode: row.mode,
     learning_goal: row.learning_goal,
     learning_category: row.learning_category,
@@ -51,28 +69,53 @@ function publicUser(row) {
   };
 }
 
-/** Ensure a profile folder exists for this username under public/uploads/users/{username}/ */
+function safeName(username) {
+  return String(username).replace(/[^a-zA-Z0-9_\-]/g, "_");
+}
+
 function ensureUserFolder(username) {
-  const safe = String(username).replace(/[^a-zA-Z0-9_\-]/g, "_");
-  const dir = path.join(USERS_DIR, safe);
+  const dir = path.join(USERS_DIR, safeName(username));
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
+function fpidPath(username) {
+  return path.join(ensureUserFolder(username), "FPID");
+}
+
+function hasFpid(username) {
+  try {
+    return fs.existsSync(fpidPath(username));
+  } catch {
+    return false;
+  }
+}
+
+function readFpid(username) {
+  try {
+    return fs.readFileSync(fpidPath(username), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+function writeFpid(username, value) {
+  fs.writeFileSync(fpidPath(username), String(value).trim(), "utf8");
+}
+
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const PASSWORD_MIN = 6;
+const FPID_RE = /^[A-Za-z]{2,20}\d{4}$/;
 
-// ---------------- avatar upload (stored in per-user folder) ----------------
-
+// ---------- Avatar (full + thumbnail copy) ----------
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const user = db.prepare("SELECT username FROM users WHERE id = ?").get(req.session.userId);
     if (!user) return cb(new Error("User not found"));
-    const dir = ensureUserFolder(user.username);
-    cb(null, dir);
+    cb(null, ensureUserFolder(user.username));
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
+    const ext = (path.extname(file.originalname) || ".jpg").toLowerCase();
     cb(null, `avatar${ext}`);
   },
 });
@@ -81,18 +124,22 @@ const uploadAvatar = multer({ storage: avatarStorage, limits: { fileSize: 5 * 10
 app.post("/api/profile/avatar", requireAuth, uploadAvatar.single("avatar"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file received" });
   const user = db.prepare("SELECT username FROM users WHERE id = ?").get(req.session.userId);
-  const safe = String(user.username).replace(/[^a-zA-Z0-9_\-]/g, "_");
-  const url = `/uploads/users/${safe}/${req.file.filename}`;
-  db.prepare("UPDATE users SET avatar_url = ? WHERE id = ?").run(url, req.session.userId);
-  res.json({ avatar_url: url });
+  const base = `/uploads/users/${safeName(user.username)}`;
+  const url = `${base}/${req.file.filename}`;
+  // Simple thumbnail: copy as avatar_thumb (clients use CSS sizing; file exists for consistency)
+  const thumbName = `avatar_thumb${path.extname(req.file.filename)}`;
+  const thumbPath = path.join(ensureUserFolder(user.username), thumbName);
+  try {
+    fs.copyFileSync(req.file.path, thumbPath);
+  } catch (_) {}
+  const thumbUrl = `${base}/${thumbName}`;
+  db.prepare("UPDATE users SET avatar_url = ?, avatar_thumb = ? WHERE id = ?").run(url, thumbUrl, req.session.userId);
+  res.json({ avatar_url: url, avatar_thumb: thumbUrl });
 });
 
-// ---------------- auth (unified login — no separate signup) ----------------
-// First time a username is used it is created. Subsequent logins check the password.
-// needsOnboarding is true until the user completes the setup flow.
-
+// ---------- Auth ----------
 app.post("/api/login", (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, mode } = req.body || {};
   if (!USERNAME_RE.test(username || "")) {
     return res.status(400).json({ error: "Username must be 3–20 letters, numbers or underscores." });
   }
@@ -100,28 +147,79 @@ app.post("/api/login", (req, res) => {
     return res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN} characters.` });
   }
 
-  let user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+  const existing = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
-  if (!user) {
-    // First login → create account + profile folder
+  if (mode === "enter") {
+    // Create new account only
+    if (existing) {
+      return res.status(409).json({ error: "Username already taken. Use Return to log in." });
+    }
     const hash = bcrypt.hashSync(password, 10);
     const info = db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)").run(username, hash);
     ensureUserFolder(username);
     req.session.userId = info.lastInsertRowid;
-    user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
-    return res.json({ user: publicUser(user), needsOnboarding: true, isNew: true });
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+    return res.json({ user: publicUser(user), needsOnboarding: true, needsFpid: true, isNew: true });
   }
 
-  // Returning user — verify password
-  if (!bcrypt.compareSync(password, user.password_hash)) {
+  // mode === "return" (or default): login only
+  if (!existing) {
+    return res.status(401).json({ error: "Incorrect username." });
+  }
+  if (!bcrypt.compareSync(password, existing.password_hash)) {
     return res.status(401).json({ error: "Incorrect password." });
   }
+  ensureUserFolder(existing.username);
+  req.session.userId = existing.id;
+  const needsFpid = !hasFpid(existing.username);
+  res.json({
+    user: publicUser(existing),
+    needsOnboarding: !existing.mode,
+    needsFpid,
+    isNew: false,
+  });
+});
 
-  // Ensure profile folder still exists
-  ensureUserFolder(user.username);
+app.post("/api/fpid", requireAuth, (req, res) => {
+  const { fpid } = req.body || {};
+  if (!FPID_RE.test(fpid || "")) {
+    return res.status(400).json({ error: "FPID must be pet name (letters) + exactly 4 digits." });
+  }
+  const user = db.prepare("SELECT username FROM users WHERE id = ?").get(req.session.userId);
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  writeFpid(user.username, fpid);
+  res.json({ ok: true });
+});
 
-  req.session.userId = user.id;
-  res.json({ user: publicUser(user), needsOnboarding: !user.mode, isNew: false });
+app.post("/api/recover", (req, res) => {
+  const { username, fpid } = req.body || {};
+  if (!username || !fpid) return res.status(400).json({ error: "Username and First Pet ID required." });
+  const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+  if (!user) return res.status(401).json({ error: "Incorrect username." });
+  const stored = readFpid(username);
+  if (!stored || stored.toLowerCase() !== String(fpid).trim().toLowerCase()) {
+    return res.status(401).json({ error: "Incorrect First Pet ID." });
+  }
+  // Mark session as recovery-eligible
+  req.session.recoveryUserId = user.id;
+  req.session.recoveryUsername = username;
+  res.json({ ok: true });
+});
+
+app.post("/api/reset-password", (req, res) => {
+  const { username, password } = req.body || {};
+  if (!req.session.recoveryUserId || req.session.recoveryUsername !== username) {
+    return res.status(403).json({ error: "Recovery session expired. Start over." });
+  }
+  if (!password || password.length < PASSWORD_MIN) {
+    return res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN} characters.` });
+  }
+  const hash = bcrypt.hashSync(password, 10);
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, req.session.recoveryUserId);
+  req.session.userId = req.session.recoveryUserId;
+  delete req.session.recoveryUserId;
+  delete req.session.recoveryUsername;
+  res.json({ ok: true });
 });
 
 app.post("/api/logout", (req, res) => req.session.destroy(() => res.json({ ok: true })));
@@ -133,10 +231,74 @@ app.get("/api/me", (req, res) => {
   res.json({ user: publicUser(user), needsOnboarding: !user.mode });
 });
 
-// ---------------- onboarding ----------------
+// ---------- Account settings ----------
+app.post("/api/account/password", requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.session.userId);
+  if (!bcrypt.compareSync(currentPassword || "", user.password_hash)) {
+    return res.status(401).json({ error: "Current password is incorrect." });
+  }
+  if (!newPassword || newPassword.length < PASSWORD_MIN) {
+    return res.status(400).json({ error: `New password must be at least ${PASSWORD_MIN} characters.` });
+  }
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(bcrypt.hashSync(newPassword, 10), user.id);
+  res.json({ ok: true });
+});
 
+app.post("/api/account/username", requireAuth, (req, res) => {
+  const { newUsername, password } = req.body || {};
+  if (!USERNAME_RE.test(newUsername || "")) {
+    return res.status(400).json({ error: "Username must be 3–20 letters, numbers or underscores." });
+  }
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.session.userId);
+  if (!bcrypt.compareSync(password || "", user.password_hash)) {
+    return res.status(401).json({ error: "Password is incorrect." });
+  }
+  if (db.prepare("SELECT id FROM users WHERE username = ?").get(newUsername)) {
+    return res.status(409).json({ error: "That username is taken." });
+  }
+  // Rename folder if possible
+  const oldDir = path.join(USERS_DIR, safeName(user.username));
+  const newDir = path.join(USERS_DIR, safeName(newUsername));
+  try {
+    if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) fs.renameSync(oldDir, newDir);
+  } catch (_) {}
+  db.prepare("UPDATE users SET username = ? WHERE id = ?").run(newUsername, user.id);
+  // Update avatar paths if they pointed at old folder
+  if (user.avatar_url && user.avatar_url.includes(`/users/${safeName(user.username)}/`)) {
+    const newUrl = user.avatar_url.replace(`/users/${safeName(user.username)}/`, `/users/${safeName(newUsername)}/`);
+    const newThumb = (user.avatar_thumb || "").replace(`/users/${safeName(user.username)}/`, `/users/${safeName(newUsername)}/`);
+    db.prepare("UPDATE users SET avatar_url = ?, avatar_thumb = ? WHERE id = ?").run(newUrl, newThumb || null, user.id);
+  }
+  res.json({ ok: true, username: newUsername });
+});
+
+// ---------- Categories (sorted by usage, creatable) ----------
 app.get("/api/categories", (req, res) => {
-  res.json({ categories: db.prepare("SELECT * FROM categories ORDER BY label").all() });
+  const rows = db
+    .prepare(
+      `SELECT c.slug, c.label,
+        (SELECT COUNT(*) FROM questions q WHERE q.category = c.slug) +
+        (SELECT COUNT(*) FROM classrooms cl WHERE cl.category = c.slug) as usage
+       FROM categories c
+       ORDER BY usage DESC, c.label ASC`
+    )
+    .all();
+  res.json({ categories: rows });
+});
+
+app.post("/api/categories", requireAuth, (req, res) => {
+  const { label } = req.body || {};
+  if (!label || !String(label).trim()) return res.status(400).json({ error: "Category name required." });
+  const clean = String(label).trim().slice(0, 40);
+  const slug = clean
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || `cat-${Date.now()}`;
+  const existing = db.prepare("SELECT * FROM categories WHERE slug = ? OR label = ?").get(slug, clean);
+  if (existing) return res.json({ category: existing });
+  db.prepare("INSERT INTO categories (slug, label) VALUES (?, ?)").run(slug, clean);
+  res.json({ category: { slug, label: clean } });
 });
 
 app.post("/api/onboarding", requireAuth, (req, res) => {
@@ -158,24 +320,20 @@ app.get("/api/resources", requireAuth, (req, res) => {
   res.json({ resources: rows });
 });
 
-// ---------------- questions & answers ----------------
-
+// ---------- Questions ----------
 app.get("/api/questions", requireAuth, (req, res) => {
   const { scope = "home", category, sort = "trending" } = req.query;
-
   let where = "q.classroom_id IS NULL";
   const params = [];
   if (category) {
     where += " AND q.category = ?";
     params.push(category);
   }
-  if (scope === "today") {
-    where += " AND date(q.created_at) = date('now')";
-  }
+  if (scope === "today") where += " AND date(q.created_at) = date('now')";
 
   let rows = db
     .prepare(
-      `SELECT q.*, u.username, u.avatar_url,
+      `SELECT q.*, u.username, u.avatar_url, u.avatar_thumb,
         (SELECT COALESCE(SUM(v.value),0) FROM votes v WHERE v.target_type='question' AND v.target_id=q.id) as score,
         (SELECT COUNT(*) FROM answers a WHERE a.question_id=q.id) as answer_count
        FROM questions q JOIN users u ON u.id = q.user_id
@@ -187,7 +345,7 @@ app.get("/api/questions", requireAuth, (req, res) => {
   if (scope === "today" && rows.length === 0) {
     rows = db
       .prepare(
-        `SELECT q.*, u.username, u.avatar_url,
+        `SELECT q.*, u.username, u.avatar_url, u.avatar_thumb,
           (SELECT COALESCE(SUM(v.value),0) FROM votes v WHERE v.target_type='question' AND v.target_id=q.id) as score,
           (SELECT COUNT(*) FROM answers a WHERE a.question_id=q.id) as answer_count
          FROM questions q JOIN users u ON u.id = q.user_id
@@ -196,21 +354,54 @@ app.get("/api/questions", requireAuth, (req, res) => {
       )
       .all(...(category ? [category] : []));
   }
-
   res.json({ questions: rows });
 });
 
-app.post("/api/questions", requireAuth, (req, res) => {
-  const { title, body, category, classroomId } = req.body || {};
-  if (!title || !title.trim()) return res.status(400).json({ error: "A question needs a title." });
+const mediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, MEDIA_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    cb(null, `m${req.session.userId}-${Date.now()}${ext}`);
+  },
+});
+const uploadMedia = multer({
+  storage: mediaStorage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok =
+      file.mimetype.startsWith("image/") ||
+      file.mimetype.startsWith("video/") ||
+      file.mimetype.startsWith("audio/");
+    cb(ok ? null : new Error("Only image, video or audio allowed"), ok);
+  },
+});
+
+app.post("/api/questions", requireAuth, uploadMedia.single("media"), (req, res) => {
+  // Supports both JSON and multipart
+  const title = (req.body.title || "").trim();
+  const body = req.body.body || null;
+  const category = req.body.category || null;
+  const classroomId = req.body.classroomId ? Number(req.body.classroomId) : null;
+  if (!title) return res.status(400).json({ error: "A question needs a title." });
+
+  let media_type = null;
+  let media_url = null;
+  if (req.file) {
+    if (req.file.mimetype.startsWith("image/")) media_type = "image";
+    else if (req.file.mimetype.startsWith("video/")) media_type = "video";
+    else if (req.file.mimetype.startsWith("audio/")) media_type = "audio";
+    media_url = `/uploads/media/${req.file.filename}`;
+  }
 
   const info = db
-    .prepare("INSERT INTO questions (user_id, classroom_id, title, body, category) VALUES (?, ?, ?, ?, ?)")
-    .run(req.session.userId, classroomId || null, title.trim(), body || null, category || null);
+    .prepare(
+      "INSERT INTO questions (user_id, classroom_id, title, body, category, media_type, media_url) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .run(req.session.userId, classroomId, title, body, category, media_type, media_url);
 
   const q = db
     .prepare(
-      `SELECT q.*, u.username, u.avatar_url, 0 as score, 0 as answer_count
+      `SELECT q.*, u.username, u.avatar_url, u.avatar_thumb, 0 as score, 0 as answer_count
        FROM questions q JOIN users u ON u.id=q.user_id WHERE q.id = ?`
     )
     .get(info.lastInsertRowid);
@@ -222,7 +413,7 @@ app.post("/api/questions", requireAuth, (req, res) => {
 app.get("/api/questions/:id", requireAuth, (req, res) => {
   const q = db
     .prepare(
-      `SELECT q.*, u.username, u.avatar_url,
+      `SELECT q.*, u.username, u.avatar_url, u.avatar_thumb,
         (SELECT COALESCE(SUM(v.value),0) FROM votes v WHERE v.target_type='question' AND v.target_id=q.id) as score
        FROM questions q JOIN users u ON u.id=q.user_id WHERE q.id = ?`
     )
@@ -231,7 +422,7 @@ app.get("/api/questions/:id", requireAuth, (req, res) => {
 
   const answers = db
     .prepare(
-      `SELECT a.*, u.username, u.avatar_url,
+      `SELECT a.*, u.username, u.avatar_url, u.avatar_thumb,
         (SELECT COALESCE(SUM(v.value),0) FROM votes v WHERE v.target_type='answer' AND v.target_id=a.id) as score
        FROM answers a JOIN users u ON u.id=a.user_id
        WHERE a.question_id = ?
@@ -242,9 +433,7 @@ app.get("/api/questions/:id", requireAuth, (req, res) => {
   const myVotes = db
     .prepare(
       `SELECT target_type, target_id, value FROM votes WHERE user_id = ?
-       AND ((target_type='question' AND target_id=?) OR (target_type='answer' AND target_id IN (${answers
-         .map(() => "?")
-         .join(",") || "NULL"})))`
+       AND ((target_type='question' AND target_id=?) OR (target_type='answer' AND target_id IN (${answers.map(() => "?").join(",") || "NULL"})))`
     )
     .all(req.session.userId, q.id, ...answers.map((a) => a.id));
 
@@ -262,7 +451,7 @@ app.post("/api/questions/:id/answers", requireAuth, (req, res) => {
     .run(question.id, req.session.userId, body.trim());
   const answer = db
     .prepare(
-      `SELECT a.*, u.username, u.avatar_url, 0 as score FROM answers a
+      `SELECT a.*, u.username, u.avatar_url, u.avatar_thumb, 0 as score FROM answers a
        JOIN users u ON u.id=a.user_id WHERE a.id = ?`
     )
     .get(info.lastInsertRowid);
@@ -278,7 +467,6 @@ app.post("/api/vote", requireAuth, (req, res) => {
   if (!["question", "answer"].includes(targetType) || ![1, -1, 0].includes(value)) {
     return res.status(400).json({ error: "Invalid vote." });
   }
-
   const table = targetType === "question" ? "questions" : "answers";
   const target = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(targetId);
   if (!target) return res.status(404).json({ error: "Not found." });
@@ -296,10 +484,7 @@ app.post("/api/vote", requireAuth, (req, res) => {
     db.prepare("UPDATE votes SET value = ? WHERE id = ?").run(value, existing.id);
   } else {
     db.prepare("INSERT INTO votes (target_type, target_id, user_id, value) VALUES (?, ?, ?, ?)").run(
-      targetType,
-      targetId,
-      req.session.userId,
-      value
+      targetType, targetId, req.session.userId, value
     );
   }
 
@@ -313,15 +498,11 @@ app.post("/api/vote", requireAuth, (req, res) => {
     const q = db.prepare("SELECT classroom_id FROM questions WHERE id = ?").get(target.question_id);
     classroomId = q ? q.classroom_id : null;
   }
-  if (classroomId) {
-    io.to(`classroom:${classroomId}`).emit("classroom_vote", { targetType, targetId, score });
-  }
-
+  if (classroomId) io.to(`classroom:${classroomId}`).emit("classroom_vote", { targetType, targetId, score });
   res.json({ score });
 });
 
-// ---------------- classrooms ----------------
-
+// ---------- Classrooms ----------
 app.get("/api/classrooms", requireAuth, (req, res) => {
   const { search, category } = req.query;
   let where = "1=1";
@@ -346,12 +527,29 @@ app.get("/api/classrooms", requireAuth, (req, res) => {
   res.json({ classrooms: rows });
 });
 
-app.post("/api/classrooms", requireAuth, (req, res) => {
-  const { title, category } = req.body || {};
-  if (!title || !title.trim()) return res.status(400).json({ error: "Give your class a topic/title." });
+const bannerStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, BANNERS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `b${req.session.userId}-${Date.now()}${ext}`);
+  },
+});
+const uploadBanner = multer({
+  storage: bannerStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    cb(null, file.mimetype.startsWith("image/"));
+  },
+});
+
+app.post("/api/classrooms", requireAuth, uploadBanner.single("banner"), (req, res) => {
+  const title = (req.body.title || "").trim();
+  const category = req.body.category || null;
+  if (!title) return res.status(400).json({ error: "Give your class a topic/title." });
+  const banner_url = req.file ? `/uploads/banners/${req.file.filename}` : null;
   const info = db
-    .prepare("INSERT INTO classrooms (title, category, creator_id, status) VALUES (?, ?, ?, 'open')")
-    .run(title.trim(), category || null, req.session.userId);
+    .prepare("INSERT INTO classrooms (title, category, creator_id, status, banner_url) VALUES (?, ?, ?, 'open', ?)")
+    .run(title, category, req.session.userId, banner_url);
   db.prepare("INSERT INTO classroom_members (classroom_id, user_id) VALUES (?, ?)").run(
     info.lastInsertRowid,
     req.session.userId
@@ -361,9 +559,7 @@ app.post("/api/classrooms", requireAuth, (req, res) => {
 
 app.get("/api/classrooms/:id", requireAuth, (req, res) => {
   const c = db
-    .prepare(
-      `SELECT c.*, u.username as creator_name FROM classrooms c JOIN users u ON u.id=c.creator_id WHERE c.id = ?`
-    )
+    .prepare(`SELECT c.*, u.username as creator_name FROM classrooms c JOIN users u ON u.id=c.creator_id WHERE c.id = ?`)
     .get(req.params.id);
   if (!c) return res.status(404).json({ error: "Class not found." });
 
@@ -372,14 +568,14 @@ app.get("/api/classrooms/:id", requireAuth, (req, res) => {
     .get(c.id, req.session.userId);
   const members = db
     .prepare(
-      `SELECT u.id, u.username, u.avatar_url FROM classroom_members m
+      `SELECT u.id, u.username, u.avatar_url, u.avatar_thumb FROM classroom_members m
        JOIN users u ON u.id = m.user_id WHERE m.classroom_id = ?`
     )
     .all(c.id);
 
   const questions = db
     .prepare(
-      `SELECT q.*, u.username, u.avatar_url,
+      `SELECT q.*, u.username, u.avatar_url, u.avatar_thumb,
         (SELECT COALESCE(SUM(v.value),0) FROM votes v WHERE v.target_type='question' AND v.target_id=q.id) as score,
         (SELECT COUNT(*) FROM answers a WHERE a.question_id=q.id) as answer_count
        FROM questions q JOIN users u ON u.id=q.user_id
@@ -409,11 +605,8 @@ app.post("/api/classrooms/:id/join", requireAuth, (req, res) => {
   const c = db.prepare("SELECT * FROM classrooms WHERE id = ?").get(req.params.id);
   if (!c) return res.status(404).json({ error: "Class not found." });
   if (c.status === "ended") return res.status(400).json({ error: "This class has ended." });
-  db.prepare("INSERT OR IGNORE INTO classroom_members (classroom_id, user_id) VALUES (?, ?)").run(
-    c.id,
-    req.session.userId
-  );
-  const member = db.prepare("SELECT username, avatar_url FROM users WHERE id = ?").get(req.session.userId);
+  db.prepare("INSERT OR IGNORE INTO classroom_members (classroom_id, user_id) VALUES (?, ?)").run(c.id, req.session.userId);
+  const member = db.prepare("SELECT username, avatar_url, avatar_thumb FROM users WHERE id = ?").get(req.session.userId);
   io.to(`classroom:${c.id}`).emit("classroom_member_joined", { userId: req.session.userId, ...member });
   res.json({ ok: true });
 });
@@ -422,37 +615,30 @@ app.post("/api/classrooms/:id/end", requireAuth, (req, res) => {
   const c = db.prepare("SELECT * FROM classrooms WHERE id = ?").get(req.params.id);
   if (!c) return res.status(404).json({ error: "Class not found." });
   if (c.creator_id !== req.session.userId) return res.status(403).json({ error: "Only the creator can end this class." });
-
   const { conclusion } = req.body || {};
   db.prepare(
     "UPDATE classrooms SET status='ended', ended_at = datetime('now'), conclusion = ?, conclusion_type = ? WHERE id = ?"
   ).run(conclusion || null, conclusion ? "manual" : null, c.id);
-
   io.to(`classroom:${c.id}`).emit("classroom_ended", { conclusion: conclusion || null });
   res.json({ ok: true });
 });
 
 app.post("/api/classrooms/:id/generate-conclusion", requireAuth, (req, res) => {
-  res.status(501).json({ error: "AI-generated conclusions are still under development. Please write one manually for now." });
+  res.status(501).json({ error: "AI-generated conclusions are still under development." });
 });
 
-// ---------------- profile ----------------
-
+// ---------- Profile ----------
 app.get("/api/profile/:id", requireAuth, (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found." });
-
   const questions = db
     .prepare(
       `SELECT q.*, (SELECT COALESCE(SUM(v.value),0) FROM votes v WHERE v.target_type='question' AND v.target_id=q.id) as score
        FROM questions q WHERE q.user_id = ? ORDER BY score DESC, q.created_at DESC`
     )
     .all(user.id);
-
   res.json({ user: publicUser(user), questions });
 });
-
-// ---------------- realtime ----------------
 
 io.on("connection", (socket) => {
   const userId = socket.request.session && socket.request.session.userId;
@@ -460,14 +646,12 @@ io.on("connection", (socket) => {
     socket.disconnect(true);
     return;
   }
-
   socket.on("join_classroom", (classroomId) => {
     const isMember = db
       .prepare("SELECT 1 FROM classroom_members WHERE classroom_id=? AND user_id=?")
       .get(classroomId, userId);
     if (isMember) socket.join(`classroom:${classroomId}`);
   });
-
   socket.on("leave_classroom", (classroomId) => socket.leave(`classroom:${classroomId}`));
 });
 
