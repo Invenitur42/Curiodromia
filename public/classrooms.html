@@ -3,103 +3,159 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Classrooms — Agora</title>
+<title>Classes — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
-  <div id="navHost"></div>
+  <div class="app-shell">
+    <div class="app-layout">
+      <!-- Left: Categories -->
+      <aside class="sidebar-left">
+        <h2>Category</h2>
+        <ul class="category-list" id="categoryList">
+          <li><button type="button" class="active" data-cat="">All</button></li>
+        </ul>
+      </aside>
 
-  <main class="page">
-    <div class="page-header">
-      <h1>Classrooms</h1>
-      <button type="button" class="primary" id="startBtn">+ Start a classroom</button>
+      <!-- Center: Classes list -->
+      <main class="main-col">
+        <div class="classes-header">
+          <h1>Classes</h1>
+          <div class="sort-row">
+            <button type="button" class="active" data-sort="most">Most</button>
+            <button type="button" data-sort="least">Least</button>
+            <button type="button" data-sort="rec">Recommendations</button>
+          </div>
+        </div>
+        <div id="classroomList"></div>
+      </main>
+
+      <!-- Right: Create -->
+      <aside class="sidebar-right">
+        <h2>Create</h2>
+        <div class="create-panel">
+          <textarea id="createTitle" placeholder="What topic or question do you want to explore?" maxlength="200"></textarea>
+          <select id="createCategory"></select>
+          <div class="upload-zone" id="bannerZone" title="Banner upload UI (ready for future)">
+            🖼 Upload Class Banner<br>
+            <span style="font-size:0.75rem;opacity:0.7">JPG, PNG or GIF · Max 5MB</span>
+          </div>
+          <button type="button" class="primary" id="createBtn" style="width:100%">Create Class</button>
+          <p class="error" id="createError" style="min-height:1.2em;"></p>
+        </div>
+      </aside>
     </div>
-
-    <div class="filters">
-      <input type="search" id="searchInput" placeholder="Search by topic…" />
-      <select id="categoryFilter"><option value="">All categories</option></select>
-    </div>
-
-    <div id="classroomList"></div>
-  </main>
-
-  <dialog id="startDialog">
-    <form id="startForm" class="form-col">
-      <h3>Start a classroom</h3>
-      <p class="hint" style="margin:0;">The title is your "intro" — the topic or question you want to explore. Others will see this before joining.</p>
-      <input type="text" id="startTitle" placeholder="e.g. Let's untangle Git rebasing" required maxlength="200" />
-      <select id="startCategory" required></select>
-      <p class="error" id="startError"></p>
-      <div class="dialog-actions">
-        <button type="button" class="ghost" id="startCancel">Cancel</button>
-        <button type="submit" class="primary">Create &amp; enter</button>
-      </div>
-    </form>
-  </dialog>
+  </div>
 
   <script src="/js/common.js"></script>
   <script>
+    let currentCategory = "";
+    let currentSort = "most";
+
+    const categoryIcons = {
+      psychology: "🧠", physics: "⚛️", maths: "π", "self-care": "♡",
+      philosophy: "⌛", biology: "🍃", creativity: "💡", history: "🏛",
+      language: "文", technology: "⚙", art: "🎨",
+    };
+
+    const thumbEmojis = ["🧠", "🌌", "△", "🌱", "🌀", "📚", "🔬", "💭"];
+
     async function load() {
       const params = new URLSearchParams();
-      const search = document.getElementById("searchInput").value.trim();
-      const category = document.getElementById("categoryFilter").value;
-      if (search) params.set("search", search);
-      if (category) params.set("category", category);
+      if (currentCategory) params.set("category", currentCategory);
       const { classrooms } = await api(`/api/classrooms?${params}`);
-
-      document.getElementById("classroomList").innerHTML = classrooms.length
-        ? classrooms
-            .map(
-              (c) => `
-          <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-            <div>
-              <strong>${escapeHtml(c.title)}</strong>
-              <div class="q-meta">
-                by ${escapeHtml(c.creator_name)}
-                ${c.category ? `<span class="badge category">${escapeHtml(c.category)}</span>` : ""}
-                <span class="badge">${c.member_count} member${c.member_count === 1 ? "" : "s"}</span>
-                <span class="badge" style="${c.status === "open" ? "color:var(--accent-2); border-color:var(--accent-2);" : ""}">${c.status === "open" ? "● live" : "ended"}</span>
-              </div>
-            </div>
-            <a href="/classroom.html?id=${c.id}" class="ghost small" style="padding:0.5rem 1rem; border-radius:8px; border:1px solid var(--border); white-space:nowrap;">
-              ${c.status === "open" ? "View / Join" : "View recap"}
-            </a>
-          </div>`
-            )
-            .join("")
-        : `<p class="empty-note">No classrooms match yet — start the first one.</p>`;
+      let list = classrooms.slice();
+      // Approximate "most/least" by member_count then created
+      list.sort((a, b) => (b.member_count || 0) - (a.member_count || 0));
+      if (currentSort === "least") list.reverse();
+      if (currentSort === "rec") {
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
+        }
+      }
+      render(list);
     }
 
-    document.getElementById("searchInput").addEventListener("input", load);
-    document.getElementById("categoryFilter").addEventListener("change", load);
+    function render(classrooms) {
+      const el = document.getElementById("classroomList");
+      if (!classrooms.length) {
+        el.innerHTML = `<p class="empty-note">No classes yet — create the first one.</p>`;
+        return;
+      }
+      el.innerHTML = classrooms.map((c, i) => {
+        const emoji = thumbEmojis[i % thumbEmojis.length];
+        const score = c.member_count || 0;
+        return `
+        <article class="class-card">
+          <div class="thumb">${emoji}</div>
+          <div class="info">
+            <div class="title">${escapeHtml(c.title)}</div>
+            <div class="desc">${c.category ? escapeHtml(c.category) : "Open exploration"} · ${c.status === "open" ? "Live" : "Ended"}</div>
+            <div class="meta">
+              <span>↑ ${score}</span>
+              <span>by ${escapeHtml(c.creator_name || "?")}</span>
+            </div>
+          </div>
+          <a class="enter-btn" href="/classroom.html?id=${c.id}">${c.status === "open" ? "Enter" : "View"}</a>
+        </article>`;
+      }).join("");
+    }
 
-    document.getElementById("startBtn").addEventListener("click", () => document.getElementById("startDialog").showModal());
-    document.getElementById("startCancel").addEventListener("click", () => document.getElementById("startDialog").close());
+    document.querySelectorAll(".sort-row button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".sort-row button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentSort = btn.dataset.sort;
+        load();
+      });
+    });
 
-    document.getElementById("startForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      document.getElementById("startError").textContent = "";
+    document.getElementById("createBtn").addEventListener("click", async () => {
+      const title = document.getElementById("createTitle").value.trim();
+      const category = document.getElementById("createCategory").value;
+      document.getElementById("createError").textContent = "";
+      if (!title) {
+        document.getElementById("createError").textContent = "Give your class a topic.";
+        return;
+      }
       try {
         const { id } = await api("/api/classrooms", {
           method: "POST",
-          body: JSON.stringify({
-            title: document.getElementById("startTitle").value.trim(),
-            category: document.getElementById("startCategory").value,
-          }),
+          body: JSON.stringify({ title, category: category || null }),
         });
         location.href = `/classroom.html?id=${id}`;
       } catch (err) {
-        document.getElementById("startError").textContent = err.message;
+        document.getElementById("createError").textContent = err.message;
       }
     });
 
     (async function init() {
       await requireSession();
-      renderNav("/classrooms.html");
+      renderBottomNav("classes");
+
       const { categories } = await api("/api/categories");
-      const opts = categories.map((c) => `<option value="${c.slug}">${escapeHtml(c.label)}</option>`).join("");
-      document.getElementById("categoryFilter").insertAdjacentHTML("beforeend", opts);
-      document.getElementById("startCategory").innerHTML = opts;
+      const list = document.getElementById("categoryList");
+      const sel = document.getElementById("createCategory");
+      sel.innerHTML = `<option value="">Category (optional)</option>`;
+
+      categories.forEach((c) => {
+        const icon = categoryIcons[c.slug] || "•";
+        const li = document.createElement("li");
+        li.innerHTML = `<button type="button" data-cat="${escapeHtml(c.slug)}"><span class="icon">${icon}</span>${escapeHtml(c.label)}</button>`;
+        list.appendChild(li);
+        sel.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(c.slug)}">${escapeHtml(c.label)}</option>`);
+      });
+
+      list.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-cat]");
+        if (!btn) return;
+        list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentCategory = btn.dataset.cat || "";
+        load();
+      });
+
       load();
     })();
   </script>

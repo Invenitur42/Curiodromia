@@ -3,67 +3,108 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Profile — Agora</title>
+<title>Profile — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
-  <div id="navHost"></div>
+  <div class="app-shell">
+    <div class="profile-page">
+      <div class="profile-top">
+        <label class="profile-avatar-wrap" id="avatarLabel" style="cursor:pointer;">
+          <img id="profileAvatar" src="/img/default-avatar.svg" alt="Avatar" />
+          <input type="file" id="avatarInput" accept="image/*" hidden />
+        </label>
+        <div class="profile-username" id="profileUsername">user_name</div>
+      </div>
 
-  <main class="page">
-    <div class="card profile-header">
-      <label id="avatarLabel" style="cursor:pointer;">
-        <img id="profileAvatar" class="avatar-lg" src="/img/default-avatar.svg" alt="" />
-        <input type="file" id="avatarInput" accept="image/*" hidden />
-      </label>
-      <div>
-        <h1 id="profileUsername" style="margin:0 0 0.3rem;"></h1>
-        <span class="badge tier" id="profileTier"></span>
-        <div class="profile-stats">
-          <div class="stat"><div class="num" id="statRep">0</div><div class="label">Reputation</div></div>
-          <div class="stat"><div class="num" id="statQuestions">0</div><div class="label">Questions asked</div></div>
-        </div>
+      <div class="profile-grid">
+        <!-- Questions -->
+        <section class="profile-panel">
+          <h2>Questions</h2>
+          <div id="questionList"></div>
+          <button type="button" class="panel-action" id="newQuestionBtn">+ New Question</button>
+        </section>
+
+        <!-- Classes -->
+        <section class="profile-panel">
+          <h2>Classes</h2>
+          <div id="classList"></div>
+          <a href="/classrooms.html" class="panel-action">+ Browse All Classes</a>
+        </section>
       </div>
     </div>
-
-    <h2 style="font-size:1.1rem;">Questions asked</h2>
-    <div id="questionList"></div>
-  </main>
+  </div>
 
   <script src="/js/common.js"></script>
   <script>
     (async function init() {
       const me = await requireSession();
-      renderNav("");
+      renderBottomNav("profile");
 
       const profileId = qs("id") || me.id;
-      const isMe = Number(profileId) === me.id;
+      const isMe = Number(profileId) === Number(me.id);
+
       if (!isMe) {
-        const label = document.getElementById("avatarLabel");
-        label.style.cursor = "default";
-        label.style.pointerEvents = "none";
+        document.getElementById("avatarLabel").style.cursor = "default";
+        document.getElementById("avatarLabel").style.pointerEvents = "none";
+        document.getElementById("newQuestionBtn").style.display = "none";
       }
 
       const { user, questions } = await api(`/api/profile/${profileId}`);
-      document.getElementById("profileUsername").textContent = user.username;
-      document.getElementById("profileTier").textContent = user.tier;
-      document.getElementById("statRep").textContent = user.reputation;
-      document.getElementById("statQuestions").textContent = questions.length;
+      document.getElementById("profileUsername").textContent = user.username || "user_name";
       if (user.avatar_url) document.getElementById("profileAvatar").src = user.avatar_url;
 
-      document.getElementById("questionList").innerHTML = questions.length
-        ? questions
-            .map(
-              (q) => `
-          <div class="card q-card">
-            <div class="vote-col"><span class="vote-score">${q.score}</span></div>
-            <div class="q-body">
-              <p class="q-title"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></p>
-              <div class="q-meta">${timeAgo(q.created_at)} ${q.category ? `<span class="badge category">${escapeHtml(q.category)}</span>` : ""}</div>
+      // Questions panel
+      const qEl = document.getElementById("questionList");
+      if (!questions.length) {
+        qEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No questions yet.</p>`;
+      } else {
+        qEl.innerHTML = questions.slice(0, 8).map((q) => `
+          <div class="profile-q-item">
+            <div>
+              <div class="q-text"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></div>
+              <div class="q-meta">${timeAgo(q.created_at)} · ${q.score ?? 0} ↑ · ${(q.answer_count != null ? q.answer_count : "?")} answers</div>
             </div>
-          </div>`
-            )
-            .join("")
-        : `<p class="empty-note">No questions asked yet.</p>`;
+            <span class="chat-icon" title="Answers">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </span>
+          </div>`).join("");
+      }
+
+      // Classes: fetch all and filter to those created by or (best-effort) joined by user
+      // (membership is not fully exposed on profile API, so we show creator classes + open ones as approximation)
+      try {
+        const { classrooms } = await api("/api/classrooms");
+        const mine = classrooms.filter((c) => c.creator_id === Number(profileId) || c.creator_name === user.username);
+        const classEl = document.getElementById("classList");
+        if (!mine.length) {
+          classEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No classes yet.</p>`;
+        } else {
+          classEl.innerHTML = mine.slice(0, 6).map((c) => {
+            const active = c.status === "open";
+            return `
+            <div class="profile-class-item">
+              <div class="class-info">
+                <div class="class-name">
+                  <span style="opacity:0.7;">${active ? "◎" : "◉"}</span>
+                  ${escapeHtml(c.title)}
+                </div>
+                <div class="class-meta">${c.member_count || 0} sessions · ${c.category || "General"}</div>
+              </div>
+              <div class="status-toggle ${active ? "active" : "completed"}">
+                <span class="dot"></span>
+                ${active ? "Active" : "Completed"}
+              </div>
+            </div>`;
+          }).join("");
+        }
+      } catch {
+        document.getElementById("classList").innerHTML = `<p class="empty-note" style="padding:1rem 0;">Could not load classes.</p>`;
+      }
+
+      document.getElementById("newQuestionBtn").addEventListener("click", () => {
+        location.href = "/home.html";
+      });
 
       if (isMe) {
         document.getElementById("avatarInput").addEventListener("change", async (e) => {
