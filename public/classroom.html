@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Classroom — Agora</title>
+<title>Class — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
@@ -14,7 +14,7 @@
     <div id="introScreen" class="card intro-screen" hidden>
       <h1 id="introTitle"></h1>
       <p class="q-meta" id="introMeta" style="justify-content:center;"></p>
-      <button type="button" class="primary" id="joinBtn" style="margin-top:1rem;">Join classroom →</button>
+      <button type="button" class="primary" id="joinBtn" style="margin-top:1rem;">Join class →</button>
     </div>
 
     <!-- Content state: the live room -->
@@ -24,11 +24,11 @@
           <h1 id="roomTitle" style="margin-bottom:0.2rem;"></h1>
           <span class="q-meta" id="roomMeta"></span>
         </div>
-        <button type="button" class="danger" id="endBtn" hidden>End classroom</button>
+        <button type="button" class="danger" id="endBtn" hidden>End class</button>
       </div>
 
       <div id="endedBanner" class="ended-banner" hidden>
-        <strong>This classroom has ended.</strong>
+        <strong>This class has ended.</strong>
         <p id="conclusionText" style="margin:0.5rem 0 0;"></p>
       </div>
 
@@ -66,7 +66,7 @@
 
   <dialog id="endDialog">
     <form id="endForm" class="form-col">
-      <h3>End this classroom</h3>
+      <h3>End this class</h3>
       <p class="hint" style="margin:0;">Write a short conclusion summarizing what the room covered.</p>
       <textarea id="conclusionInput" rows="4" placeholder="Write the conclusion manually…"></textarea>
       <button type="button" class="ghost" disabled title="AI-generated conclusions are still under development" style="align-self:flex-start;">
@@ -123,7 +123,7 @@
       document.getElementById("endedBanner").hidden = isOpen;
       if (!isOpen) {
         document.getElementById("conclusionText").textContent =
-          classroom.conclusion || "The creator ended this classroom without adding a written conclusion.";
+          classroom.conclusion || "The creator ended this class without adding a written conclusion.";
       }
 
       // Chat thread: questions in chronological order, each followed by its answers.

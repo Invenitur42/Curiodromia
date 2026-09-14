@@ -3,7 +3,7 @@ const fs = require("fs");
 const Database = require("better-sqlite3");
 const bcrypt = require("bcryptjs");
 
-const DB_PATH = path.join(__dirname, "agora.sqlite");
+const DB_PATH = path.join(__dirname, "curiodromia.sqlite");
 const SCHEMA_PATH = path.join(__dirname, "schema.sql");
 
 const db = new Database(DB_PATH);

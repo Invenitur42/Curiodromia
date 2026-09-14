@@ -21,7 +21,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const sessionMiddleware = session({
-  secret: "agora-dev-secret-change-me",
+  secret: "curiodromia-dev-secret-change-me",
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 1000 * 60 * 60 * 24 * 7 },
@@ -457,5 +457,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Agora running at http://localhost:${PORT}`);
+  console.log(`Curiodromia running at http://localhost:${PORT}`);
 });

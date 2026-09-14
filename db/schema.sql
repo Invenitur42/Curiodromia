@@ -1,4 +1,4 @@
--- Agora schema (SQLite)
+-- Curiodromia schema (SQLite)
 -- Applied automatically by db/init.js on first run.
 
 CREATE TABLE IF NOT EXISTS users (

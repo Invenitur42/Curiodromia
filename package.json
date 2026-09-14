@@ -1,7 +1,7 @@
 {
-  "name": "agora",
+  "name": "curiodromia",
   "version": "1.0.0",
-  "description": "A Q&A learning platform with ranked answers and live classrooms.",
+  "description": "A social Q&A platform where questions and answers rise on merit, with live classes.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
