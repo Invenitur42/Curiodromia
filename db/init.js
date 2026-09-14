@@ -81,8 +81,6 @@ if (categoryCount === 0) {
       }
     }
 
-    // Demo account + a few seed questions so the homepage has content
-    // the first time someone clones the repo. Credentials are in the README.
     const demoHash = bcrypt.hashSync("DemoPass123", 10);
     const demoId = db
       .prepare(
@@ -91,9 +89,7 @@ if (categoryCount === 0) {
       .run("demo", demoHash).lastInsertRowid;
 
     const q1 = db
-      .prepare(
-        "INSERT INTO questions (user_id, title, body, category) VALUES (?, ?, ?, ?)"
-      )
+      .prepare("INSERT INTO questions (user_id, title, body, category) VALUES (?, ?, ?, ?)")
       .run(
         demoId,
         "What's the actual difference between let, const and var?",
@@ -134,4 +130,14 @@ if (categoryCount === 0) {
   console.log("Seeded categories, resources and demo content (user: demo / DemoPass123).");
 }
 
+/** Close the DB cleanly so better-sqlite3 Statement destructors don't run after V8 teardown. */
+function closeDb() {
+  try {
+    if (db && db.open) db.close();
+  } catch (err) {
+    // ignore double-close / already-closed
+  }
+}
+
 module.exports = db;
+module.exports.closeDb = closeDb;

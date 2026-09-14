@@ -1,7 +1,7 @@
 // Shared helpers used across routes: DB handle, and reputation math.
-// Keeping this in one place keeps the "how is a score computed" logic consistent.
 
 const db = require("./init");
+const closeDb = require("./init").closeDb;
 
 function reputationTier(score) {
   if (score >= 50) return "Luminary";
@@ -22,4 +22,4 @@ function userReputation(userId) {
   return row.rep || 0;
 }
 
-module.exports = { db, reputationTier, userReputation };
+module.exports = { db, closeDb, reputationTier, userReputation };
