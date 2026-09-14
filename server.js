@@ -144,7 +144,7 @@ app.post("/api/account/username", requireAuth, (req, res) => {
   const { newUsername, password } = req.body || {};
   if (!USERNAME_RE.test(newUsername || "")) return res.status(400).json({ error: "Username must be 3–20 letters, numbers or underscores." });
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.session.userId);
-  if (!bcrypt.compareSync(password || "", user.password_hash)) coll return res.status(401).json({ error: "Password is incorrect." });
+  if (!bcrypt.compareSync(password || "", user.password_hash)) return res.status(401).json({ error: "Password is incorrect." });
   if (db.prepare("SELECT id FROM users WHERE username = ?").get(newUsername)) return res.status(409).json({ error: "That username is taken." });
   try { const o = path.join(USERS_DIR, safeName(user.username)); const n = path.join(USERS_DIR, safeName(newUsername)); if (fs.existsSync(o) && !fs.existsSync(n)) fs.renameSync(o, n); } catch (_) {}
   db.prepare("UPDATE users SET username = ? WHERE id = ?").run(newUsername, user.id);
@@ -159,7 +159,7 @@ app.post("/api/categories", requireAuth, (req, res) => {
   if (!label || !String(label).trim()) return res.status(400).json({ error: "Category name required." });
   const clean = String(label).trim().slice(0, 40);
   const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `cat-${Date.now()}`;
-  const existing = db.prepare("SELECT * FROM categories WHERE slug = ? OR label = ?").get co(slug, clean);
+  const existing = db.prepare("SELECT * FROM categories WHERE slug = ? OR label = ?").get(slug, clean);
   if (existing) return res.json({ category: existing });
   db.prepare("INSERT INTO categories (slug, label) VALUES (?, ?)").run(slug, clean);
   res.json({ category: { slug, label: clean } });
@@ -222,7 +222,7 @@ app.post("/api/questions/:id/answers", requireAuth, uploadMedia.single("media"),
   let media_type = null, media_url = null;
   if (req.file) {
     if (req.file.mimetype.startsWith("image/")) media_type = "image";
-    else if ( reg.file.mimetype.startsWith("video/")) media_type = "video";
+    else if (req.file.mimetype.startsWith("video/")) media_type = "video";
     else if (req.file.mimetype.startsWith("audio/")) media_type = "audio";
     media_url = `/uploads/media/${req.file.filename}`;
   }
@@ -238,7 +238,7 @@ app.delete("/api/questions/:id", requireAuth, (req, res) => {
   if (q.user_id !== req.session.userId) return res.status(403).json({ error: "You can only delete your own questions." });
   db.prepare("DELETE FROM votes WHERE target_type='question' AND target_id=?").run(q.id);
   for (const a of db.prepare("SELECT id FROM answers WHERE question_id=?").all(q.id)) db.prepare("DELETE FROM votes WHERE target_type='answer' AND target_id=?").run(a.id);
-  db.prepare("DELETE FROM answers ind WHERE question_id=?").run(q.id);
+  db.prepare("DELETE FROM answers WHERE question_id=?").run(q.id);
   db.prepare("DELETE FROM questions WHERE id=?").run(q.id);
   res.json({ ok: true });
 });
@@ -342,7 +342,7 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () => console.log(`Curiodromia running at http://localhost:${PORT}`));
-let shuttingDown coll = false;
+let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) return; shuttingDown = true;
   try { io.close(); } catch (_) {}
