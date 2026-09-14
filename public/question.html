@@ -8,38 +8,39 @@
 </head>
 <body>
   <div id="navHost"></div>
-
   <main class="page">
     <div id="questionCard"></div>
-
     <h2 style="font-size:1.05rem;font-weight:600;margin:1.25rem 0 0.65rem;" id="answersHeading">Answers</h2>
     <div class="card" id="answersCard"></div>
-
     <form id="answerForm" class="card form-col">
       <textarea id="answerBody" rows="3" placeholder="Write an answer…" required></textarea>
+      <div class="media-row">
+        <label class="media-btn"><input type="file" id="answerMedia" accept="image/*,audio/*" hidden />Attach image/audio</label>
+        <span id="answerMediaLabel" style="font-size:0.75rem;color:var(--muted);"></span>
+      </div>
       <p class="error" id="answerError"></p>
       <button type="submit" class="primary" style="align-self:flex-end;">Post answer</button>
     </form>
   </main>
-
   <script src="/js/common.js"></script>
   <script>
     let me = null;
     const questionId = qs("id");
+    let answerFile = null;
 
     function voteButtonsHtml(type, id, score, myVote) {
-      return `
-        <div class="vote-col">
-          <button type="button" class="vote-btn ${myVote === 1 ? "active-up" : ""}" data-vote="1" data-type="${type}" data-id="${id}">▲</button>
-          <span class="vote-score">${score}</span>
-          <button type="button" class="vote-btn ${myVote === -1 ? "active-down" : ""}" data-vote="-1" data-type="${type}" data-id="${id}">▼</button>
-        </div>`;
+      return `<div class="vote-col">
+        <button type="button" class="vote-btn ${myVote===1?"active-up":""}" data-vote="1" data-type="${type}" data-id="${id}">▲</button>
+        <span class="vote-score">${score}</span>
+        <button type="button" class="vote-btn ${myVote===-1?"active-down":""}" data-vote="-1" data-type="${type}" data-id="${id}">▼</button>
+      </div>`;
     }
 
     async function load() {
       const { question, answers, myVotes } = await api(`/api/questions/${questionId}`);
-      const myQVote = (myVotes.find((v) => v.target_type === "question" && v.target_id === question.id) || {}).value || 0;
+      const myQVote = (myVotes.find(v => v.target_type === "question" && v.target_id === question.id) || {}).value || 0;
       const thumb = question.avatar_thumb || question.avatar_url || "/img/default-avatar.svg";
+      const canDeleteQ = me && Number(me.id) === Number(question.user_id);
 
       document.getElementById("questionCard").innerHTML = `
         <div class="card q-card">
@@ -49,69 +50,90 @@
             ${question.body ? `<p style="color:var(--muted);margin-bottom:0.5rem;">${escapeHtml(question.body)}</p>` : ""}
             ${renderMediaBlock(question.media_type, question.media_url, { large: true })}
             <div class="q-meta">
-              <img src="${escapeHtml(thumb)}" class="avatar-sm" alt="" style="width:22px;height:22px;" />
-              <span>${escapeHtml(question.username)}</span>
+              <img src="${escapeHtml(thumb)}" class="avatar-sm" style="width:22px;height:22px;" alt="" />
+              <a href="/profile.html?id=${question.user_id}">${escapeHtml(question.username)}</a>
               <span>${timeAgo(question.created_at)}</span>
               ${question.category ? `<span class="badge category">${escapeHtml(question.category)}</span>` : ""}
+              ${canDeleteQ ? `<button type="button" class="danger" id="deleteQ">Delete</button>` : ""}
             </div>
           </div>
         </div>`;
 
+      if (canDeleteQ) {
+        document.getElementById("deleteQ").addEventListener("click", async () => {
+          if (!confirm("Delete this question?")) return;
+          await api(`/api/questions/${questionId}`, { method: "DELETE" });
+          location.href = "/home.html";
+        });
+      }
+
       document.getElementById("answersHeading").textContent = `${answers.length} Answer${answers.length === 1 ? "" : "s"}`;
       document.getElementById("answersCard").innerHTML = answers.length
-        ? answers.map((a) => {
-            const myAVote = (myVotes.find((v) => v.target_type === "answer" && v.target_id === a.id) || {}).value || 0;
-            return `
-              <div class="answer">
-                ${voteButtonsHtml("answer", a.id, a.score, myAVote)}
-                <div class="q-body">
-                  <p>${escapeHtml(a.body)}</p>
-                  <div class="q-meta"><span>${escapeHtml(a.username)}</span><span>${timeAgo(a.created_at)}</span></div>
+        ? answers.map(a => {
+            const myAVote = (myVotes.find(v => v.target_type === "answer" && v.target_id === a.id) || {}).value || 0;
+            const canDel = me && Number(me.id) === Number(a.user_id);
+            return `<div class="answer">
+              ${voteButtonsHtml("answer", a.id, a.score, myAVote)}
+              <div class="q-body">
+                <p>${escapeHtml(a.body)}</p>
+                ${renderMediaBlock(a.media_type, a.media_url)}
+                <div class="q-meta">
+                  <a href="/profile.html?id=${a.user_id}">${escapeHtml(a.username)}</a>
+                  <span>${timeAgo(a.created_at)}</span>
+                  ${canDel ? `<button type="button" class="danger" data-del-ans="${a.id}">Delete</button>` : ""}
                 </div>
-              </div>`;
+              </div>
+            </div>`;
           }).join("")
         : `<p class="empty-note">No answers yet — be the first to help.</p>`;
 
-      attachVoteHandlers();
-    }
+      document.querySelectorAll("[data-del-ans]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this answer?")) return;
+          await api(`/api/answers/${btn.dataset.delAns}`, { method: "DELETE" });
+          load();
+        });
+      });
 
-    function attachVoteHandlers() {
-      document.querySelectorAll(".vote-btn").forEach((btn) => {
+      document.querySelectorAll(".vote-btn").forEach(btn => {
         btn.addEventListener("click", async () => {
           const isActive = btn.classList.contains("active-up") || btn.classList.contains("active-down");
           const value = isActive ? 0 : Number(btn.dataset.vote);
           try {
-            await api("/api/vote", {
-              method: "POST",
-              body: JSON.stringify({ targetType: btn.dataset.type, targetId: Number(btn.dataset.id), value }),
-            });
+            await api("/api/vote", { method: "POST", body: JSON.stringify({ targetType: btn.dataset.type, targetId: Number(btn.dataset.id), value }) });
             load();
-          } catch (err) {
-            alert(err.message);
-          }
+          } catch (err) { alert(err.message); }
         });
       });
     }
 
-    document.getElementById("answerForm").addEventListener("submit", async (e) => {
+    document.getElementById("answerMedia").addEventListener("change", e => {
+      answerFile = e.target.files[0] || null;
+      document.getElementById("answerMediaLabel").textContent = answerFile ? answerFile.name : "";
+    });
+
+    document.getElementById("answerForm").addEventListener("submit", async e => {
       e.preventDefault();
       document.getElementById("answerError").textContent = "";
       try {
-        await api(`/api/questions/${questionId}/answers`, {
-          method: "POST",
-          body: JSON.stringify({ body: document.getElementById("answerBody").value.trim() }),
-        });
+        const fd = new FormData();
+        fd.append("body", document.getElementById("answerBody").value.trim());
+        if (answerFile) fd.append("media", answerFile);
+        const res = await fetch(`/api/questions/${questionId}/answers`, { method: "POST", body: fd, credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
         document.getElementById("answerBody").value = "";
+        answerFile = null;
+        document.getElementById("answerMediaLabel").textContent = "";
         load();
-      } catch (err) {
-        document.getElementById("answerError").textContent = err.message;
-      }
+      } catch (err) { document.getElementById("answerError").textContent = err.message; }
     });
 
     (async function init() {
       me = await requireSession();
       renderNav("/home.html");
       renderBottomNav("home");
+      ensureLightbox();
       load();
     })();
   </script>

@@ -8,8 +8,8 @@
 </head>
 <body>
   <div class="app-shell">
-    <div class="profile-header-bar">
-      <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" title="Menu">
+    <div class="profile-menu-fixed" id="menuWrap">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu">
         <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
       <div class="dropdown-menu" id="dropdownMenu">
@@ -27,6 +27,11 @@
           <input type="file" id="avatarInput" accept="image/*" hidden />
         </label>
         <div class="profile-username" id="profileUsername">user_name</div>
+        <div class="profile-stats">
+          <span><strong id="statTrackers">0</strong> trackers</span>
+          <span><strong id="statTracking">0</strong> tracking</span>
+        </div>
+        <button type="button" class="track-btn" id="trackBtn" hidden>Track</button>
       </div>
 
       <div class="profile-grid">
@@ -50,19 +55,14 @@
       <p style="color:var(--muted);font-size:0.9rem;margin:0 0 0.5rem;">Username: <strong id="infoUsername"></strong></p>
       <p style="color:var(--muted);font-size:0.9rem;margin:0 0 0.5rem;">Reputation: <strong id="infoRep"></strong></p>
       <p style="color:var(--muted);font-size:0.9rem;margin:0 0 1rem;">Tier: <strong id="infoTier"></strong></p>
-      <div class="settings-actions">
-        <button type="button" class="primary" id="accountClose">Close</button>
-      </div>
+      <div class="settings-actions"><button type="button" class="primary" id="accountClose">Close</button></div>
     </div>
   </div>
-
   <div class="settings-modal" id="passwordModal">
     <div class="settings-card">
       <h3>Change password</h3>
-      <label>Current password</label>
-      <input type="password" id="curPass" />
-      <label>New password</label>
-      <input type="password" id="newPass" minlength="6" />
+      <label>Current password</label><input type="password" id="curPass" />
+      <label>New password</label><input type="password" id="newPass" minlength="6" />
       <p class="error" id="passError"></p>
       <div class="settings-actions">
         <button type="button" class="ghost" id="passCancel">Cancel</button>
@@ -70,14 +70,11 @@
       </div>
     </div>
   </div>
-
   <div class="settings-modal" id="usernameModal">
     <div class="settings-card">
       <h3>Change username</h3>
-      <label>New username</label>
-      <input type="text" id="newUser" maxlength="20" />
-      <label>Confirm with password</label>
-      <input type="password" id="userPass" />
+      <label>New username</label><input type="text" id="newUser" maxlength="20" />
+      <label>Confirm with password</label><input type="password" id="userPass" />
       <p class="error" id="userError"></p>
       <div class="settings-actions">
         <button type="button" class="ghost" id="userCancel">Cancel</button>
@@ -100,62 +97,69 @@
         document.getElementById("avatarLabel").style.cursor = "default";
         document.getElementById("avatarLabel").style.pointerEvents = "none";
         document.getElementById("newQuestionBtn").style.display = "none";
-        document.getElementById("menuBtn").style.display = "none";
+        document.getElementById("menuWrap").style.display = "none";
       }
 
       const { user, questions } = await api(`/api/profile/${profileId}`);
       document.getElementById("profileUsername").textContent = user.username || "user_name";
-      const avatarSrc = user.avatar_thumb || user.avatar_url;
-      if (avatarSrc) document.getElementById("profileAvatar").src = avatarSrc;
-
+      if (user.avatar_thumb || user.avatar_url) document.getElementById("profileAvatar").src = user.avatar_thumb || user.avatar_url;
       document.getElementById("infoUsername").textContent = user.username;
       document.getElementById("infoRep").textContent = user.reputation ?? 0;
       document.getElementById("infoTier").textContent = user.tier || "Newcomer";
+      document.getElementById("statTrackers").textContent = user.trackers ?? 0;
+      document.getElementById("statTracking").textContent = user.tracking_count ?? 0;
+
+      if (!isMe) {
+        const btn = document.getElementById("trackBtn");
+        btn.hidden = false;
+        function setTrackState(tracking) {
+          btn.textContent = tracking ? "Untrack" : "Track";
+          btn.classList.toggle("tracking", tracking);
+        }
+        setTrackState(!!user.is_tracking);
+        btn.addEventListener("click", async () => {
+          try {
+            if (btn.classList.contains("tracking")) {
+              await api(`/api/track/${profileId}`, { method: "DELETE" });
+              setTrackState(false);
+              document.getElementById("statTrackers").textContent = Math.max(0, (user.trackers || 1) - 1);
+            } else {
+              await api(`/api/track/${profileId}`, { method: "POST" });
+              setTrackState(true);
+              document.getElementById("statTrackers").textContent = (user.trackers || 0) + 1;
+            }
+          } catch (err) { alert(err.message); }
+        });
+      }
 
       const qEl = document.getElementById("questionList");
-      if (!questions.length) {
-        qEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No questions yet.</p>`;
-      } else {
-        qEl.innerHTML = questions.slice(0, 8).map((q) => `
-          <div class="profile-q-item">
-            <div>
-              <div class="q-text"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></div>
-              <div class="q-meta">${timeAgo(q.created_at)} · ${q.score ?? 0} ↑</div>
-            </div>
-          </div>`).join("");
-      }
+      if (!questions.length) qEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No questions yet.</p>`;
+      else qEl.innerHTML = questions.slice(0, 8).map(q => `
+        <div class="profile-q-item">
+          <div>
+            <div class="q-text"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></div>
+            <div class="q-meta">${timeAgo(q.created_at)} · ${q.score ?? 0} ↑</div>
+          </div>
+        </div>`).join("");
 
       try {
         const { classrooms } = await api("/api/classrooms");
-        const mine = classrooms.filter((c) => c.creator_id === Number(profileId) || c.creator_name === user.username);
+        const mine = classrooms.filter(c => c.creator_id === Number(profileId) || c.creator_name === user.username);
         const classEl = document.getElementById("classList");
-        if (!mine.length) {
-          classEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No classes yet.</p>`;
-        } else {
-          classEl.innerHTML = mine.slice(0, 6).map((c) => {
-            const active = c.status === "open";
-            return `<div class="profile-class-item">
-              <div class="class-info">
-                <div class="class-name">${escapeHtml(c.title)}</div>
-                <div class="class-meta">${c.member_count || 0} · ${c.category || "General"}</div>
-              </div>
-              <div class="status-toggle ${active ? "active" : "completed"}"><span class="dot"></span>${active ? "Active" : "Completed"}</div>
-            </div>`;
-          }).join("");
-        }
-      } catch {
-        document.getElementById("classList").innerHTML = `<p class="empty-note">Could not load classes.</p>`;
-      }
+        if (!mine.length) classEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No classes yet.</p>`;
+        else classEl.innerHTML = mine.slice(0, 6).map(c => `
+          <div class="profile-class-item">
+            <div><div class="class-name">${escapeHtml(c.title)}</div>
+            <div class="class-meta">${c.member_count || 0} · ${c.category || "General"}</div></div>
+          </div>`).join("");
+      } catch { document.getElementById("classList").innerHTML = `<p class="empty-note">Could not load classes.</p>`; }
 
       document.getElementById("newQuestionBtn").addEventListener("click", () => { location.href = "/home.html"; });
 
       if (isMe) {
-        document.getElementById("avatarInput").addEventListener("change", async (e) => {
-          const file = e.target.files[0];
-          e.target.value = "";
-          if (!file) return;
-          const fd = new FormData();
-          fd.append("avatar", file);
+        document.getElementById("avatarInput").addEventListener("change", async e => {
+          const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+          const fd = new FormData(); fd.append("avatar", file);
           const res = await fetch("/api/profile/avatar", { method: "POST", body: fd, credentials: "same-origin" });
           const data = await res.json();
           if (res.ok) document.getElementById("profileAvatar").src = data.avatar_thumb || data.avatar_url;
@@ -163,69 +167,30 @@
 
         const menuBtn = document.getElementById("menuBtn");
         const dropdown = document.getElementById("dropdownMenu");
-        menuBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          dropdown.classList.toggle("open");
-        });
+        menuBtn.addEventListener("click", e => { e.stopPropagation(); dropdown.classList.toggle("open"); });
         document.addEventListener("click", () => dropdown.classList.remove("open"));
 
-        document.getElementById("menuAccount").addEventListener("click", () => {
-          dropdown.classList.remove("open");
-          document.getElementById("accountModal").classList.add("open");
-        });
-        document.getElementById("accountClose").addEventListener("click", () => {
-          document.getElementById("accountModal").classList.remove("open");
-        });
-
-        document.getElementById("menuPassword").addEventListener("click", () => {
-          dropdown.classList.remove("open");
-          document.getElementById("passError").textContent = "";
-          document.getElementById("passwordModal").classList.add("open");
-        });
-        document.getElementById("passCancel").addEventListener("click", () => {
-          document.getElementById("passwordModal").classList.remove("open");
-        });
+        document.getElementById("menuAccount").addEventListener("click", () => { dropdown.classList.remove("open"); document.getElementById("accountModal").classList.add("open"); });
+        document.getElementById("accountClose").addEventListener("click", () => document.getElementById("accountModal").classList.remove("open"));
+        document.getElementById("menuPassword").addEventListener("click", () => { dropdown.classList.remove("open"); document.getElementById("passwordModal").classList.add("open"); });
+        document.getElementById("passCancel").addEventListener("click", () => document.getElementById("passwordModal").classList.remove("open"));
         document.getElementById("passSave").addEventListener("click", async () => {
           try {
-            await api("/api/account/password", {
-              method: "POST",
-              body: JSON.stringify({
-                currentPassword: document.getElementById("curPass").value,
-                newPassword: document.getElementById("newPass").value,
-              }),
-            });
+            await api("/api/account/password", { method: "POST", body: JSON.stringify({ currentPassword: document.getElementById("curPass").value, newPassword: document.getElementById("newPass").value }) });
             document.getElementById("passwordModal").classList.remove("open");
             alert("Password updated.");
-          } catch (err) {
-            document.getElementById("passError").textContent = err.message;
-          }
+          } catch (err) { document.getElementById("passError").textContent = err.message; }
         });
-
-        document.getElementById("menuUsername").addEventListener("click", () => {
-          dropdown.classList.remove("open");
-          document.getElementById("userError").textContent = "";
-          document.getElementById("usernameModal").classList.add("open");
-        });
-        document.getElementById("userCancel").addEventListener("click", () => {
-          document.getElementById("usernameModal").classList.remove("open");
-        });
+        document.getElementById("menuUsername").addEventListener("click", () => { dropdown.classList.remove("open"); document.getElementById("usernameModal").classList.add("open"); });
+        document.getElementById("userCancel").addEventListener("click", () => document.getElementById("usernameModal").classList.remove("open"));
         document.getElementById("userSave").addEventListener("click", async () => {
           try {
-            const data = await api("/api/account/username", {
-              method: "POST",
-              body: JSON.stringify({
-                newUsername: document.getElementById("newUser").value.trim(),
-                password: document.getElementById("userPass").value,
-              }),
-            });
+            const data = await api("/api/account/username", { method: "POST", body: JSON.stringify({ newUsername: document.getElementById("newUser").value.trim(), password: document.getElementById("userPass").value }) });
             document.getElementById("profileUsername").textContent = data.username;
             document.getElementById("usernameModal").classList.remove("open");
             alert("Username updated.");
-          } catch (err) {
-            document.getElementById("userError").textContent = err.message;
-          }
+          } catch (err) { document.getElementById("userError").textContent = err.message; }
         });
-
         document.getElementById("menuLogout").addEventListener("click", async () => {
           await api("/api/logout", { method: "POST" });
           location.href = "/index.html";
