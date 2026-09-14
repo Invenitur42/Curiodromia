@@ -23,7 +23,7 @@
           <div class="sort-row">
             <button type="button" class="active" data-sort="most">Most</button>
             <button type="button" data-sort="least">Least</button>
-            <button type="button" data-sort="rec">Recommendations</button>
+            <button type="button" data-sort="rec">For you</button>
           </div>
         </div>
         <div id="classroomList"></div>
@@ -36,7 +36,7 @@
           <select id="createCategory"></select>
           <label class="upload-zone" id="bannerZone">
             <input type="file" id="bannerInput" accept="image/*" hidden />
-            <span id="bannerLabel">🖼 Upload Class Banner<br><span style="font-size:0.75rem;opacity:0.7">JPG, PNG or GIF · Max 5MB</span></span>
+            <span id="bannerLabel">Upload class banner<br><span style="font-size:0.75rem;opacity:0.7">JPG, PNG · Max 5MB</span></span>
           </label>
           <button type="button" class="primary" id="createBtn" style="width:100%">Create Class</button>
           <p class="error" id="createError" style="min-height:1.2em;"></p>
@@ -92,7 +92,7 @@
       }
       el.innerHTML = classrooms.map((c) => {
         const thumb = c.banner_url
-          ? `<img src="${escapeHtml(c.banner_url)}" class="thumb" alt="" style="object-fit:cover;" />`
+          ? `<img src="${escapeHtml(c.banner_url)}" class="thumb" alt="" />`
           : `<div class="thumb">◎</div>`;
         return `
         <article class="class-card">
@@ -120,7 +120,7 @@
       bannerFile = e.target.files[0] || null;
       document.getElementById("bannerLabel").innerHTML = bannerFile
         ? `✓ ${escapeHtml(bannerFile.name)}`
-        : `🖼 Upload Class Banner<br><span style="font-size:0.75rem;opacity:0.7">JPG, PNG or GIF · Max 5MB</span>`;
+        : `Upload class banner<br><span style="font-size:0.75rem;opacity:0.7">JPG, PNG · Max 5MB</span>`;
     });
 
     document.getElementById("createBtn").addEventListener("click", async () => {
@@ -160,6 +160,7 @@
 
     (async function init() {
       await requireSession();
+      renderTopLogo();
       renderBottomNav("classes");
       const { categories } = await api("/api/categories");
       allCategories = categories;

@@ -3,24 +3,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Resources for you — Curiodromia</title>
+<title>Resources — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
   <div id="navHost"></div>
 
   <main class="page">
-    <div class="page-header">
-      <h1 id="pageTitle">Resources</h1>
-      <a href="/home.html" class="ghost small" style="padding:0.5rem 0.9rem; border-radius:10px; border:1px solid var(--border);">Go to homepage →</a>
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <h1 id="pageTitle" style="margin:0;font-size:1.3rem;">Resources</h1>
+      <a href="/home.html" class="ghost small">Go to feed →</a>
     </div>
-    <p class="tagline" id="goalLine" style="color:var(--muted);"></p>
+    <p id="goalLine" style="color:var(--muted);margin-bottom:1.25rem;font-size:0.9rem;"></p>
 
-    <div class="resource-grid" id="resourceGrid"></div>
+    <div class="resource-grid" id="resourceGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.9rem;"></div>
 
-    <div class="page-header" style="margin-top:2rem;">
-      <h1 style="font-size:1.1rem;">Classes in this category</h1>
-    </div>
+    <h2 style="font-size:1.05rem;margin:2rem 0 0.75rem;">Classes in this category</h2>
     <div id="classroomList"></div>
   </main>
 
@@ -28,7 +26,8 @@
   <script>
     (async function init() {
       const user = await requireSession();
-      renderNav("");
+      renderNav("/home.html");
+      renderBottomNav("home");
 
       const category = qs("category") || user.learning_category;
       if (!category) { location.href = "/home.html"; return; }
@@ -37,38 +36,30 @@
       const label = (categories.find((c) => c.slug === category) || {}).label || category;
       document.getElementById("pageTitle").textContent = `Learning: ${label}`;
       document.getElementById("goalLine").textContent = user.learning_goal
-        ? `Based on what you told us: "${user.learning_goal}"`
+        ? `Based on what you told us: “${user.learning_goal}”`
         : "";
 
       const { resources } = await api(`/api/resources?category=${encodeURIComponent(category)}`);
       document.getElementById("resourceGrid").innerHTML = resources.length
-        ? resources
-            .map(
-              (r) => `
-          <div class="card resource-card">
-            <h3>${escapeHtml(r.title)}</h3>
-            <p>${escapeHtml(r.description || "")}</p>
-            <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Visit resource →</a>
-          </div>`
-            )
-            .join("")
+        ? resources.map((r) => `
+          <div class="card">
+            <h3 style="font-size:0.98rem;margin:0 0 0.4rem;">${escapeHtml(r.title)}</h3>
+            <p style="font-size:0.85rem;color:var(--muted);margin:0 0 0.65rem;">${escapeHtml(r.description || "")}</p>
+            <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Visit →</a>
+          </div>`).join("")
         : `<p class="empty-note">No curated resources for this category yet.</p>`;
 
       const { classrooms } = await api(`/api/classrooms?category=${encodeURIComponent(category)}`);
       document.getElementById("classroomList").innerHTML = classrooms.length
-        ? classrooms
-            .map(
-              (c) => `
-          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        ? classrooms.map((c) => `
+          <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
             <div>
               <strong>${escapeHtml(c.title)}</strong>
-              <div class="q-meta">by ${escapeHtml(c.creator_name)} · ${c.member_count} member${c.member_count === 1 ? "" : "s"} · ${c.status === "open" ? "live" : "ended"}</div>
+              <div class="q-meta">by ${escapeHtml(c.creator_name)} · ${c.member_count} members · ${c.status === "open" ? "live" : "ended"}</div>
             </div>
-            <a href="/classroom.html?id=${c.id}" class="ghost small" style="padding:0.4rem 0.8rem; border-radius:8px; border:1px solid var(--border);">View</a>
-          </div>`
-            )
-            .join("")
-        : `<p class="empty-note">No classes in this category yet — <a href="/classrooms.html">start one</a>.</p>`;
+            <a href="/classroom.html?id=${c.id}" class="ghost small">View</a>
+          </div>`).join("")
+        : `<p class="empty-note">No classes yet — <a href="/classrooms.html">start one</a>.</p>`;
     })();
   </script>
 </body>
