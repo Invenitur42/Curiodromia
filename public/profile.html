@@ -5,9 +5,99 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Profile — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
+<style>
+  .profile-header-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem 1rem 0;
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .menu-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .menu-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .menu-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 52px; right: 1rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    min-width: 220px;
+    z-index: 50;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .dropdown-menu.open { display: block; }
+  .dropdown-menu button, .dropdown-menu a {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .dropdown-menu button:hover, .dropdown-menu a:hover {
+    background: var(--panel-2);
+  }
+  .dropdown-menu .danger { color: #ff6b6b; }
+  .settings-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 1rem;
+  }
+  .settings-modal.open { display: flex; }
+  .settings-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    width: min(400px, 100%);
+  }
+  .settings-card h3 { margin: 0 0 1rem; }
+  .settings-card label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.3rem; }
+  .settings-card input {
+    width: 100%; margin-bottom: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+  }
+  .settings-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+</style>
 </head>
 <body>
   <div class="app-shell">
+    <div class="profile-header-bar">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" title="Menu">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="dropdown-menu" id="dropdownMenu">
+        <button type="button" id="menuAccount">Account information</button>
+        <button type="button" id="menuPassword">Change password</button>
+        <button type="button" id="menuUsername">Change username</button>
+        <button type="button" id="menuLogout" class="danger">Log out</button>
+      </div>
+    </div>
+
     <div class="profile-page">
       <div class="profile-top">
         <label class="profile-avatar-wrap" id="avatarLabel" style="cursor:pointer;">
@@ -18,19 +108,61 @@
       </div>
 
       <div class="profile-grid">
-        <!-- Questions -->
         <section class="profile-panel">
           <h2>Questions</h2>
           <div id="questionList"></div>
           <button type="button" class="panel-action" id="newQuestionBtn">+ New Question</button>
         </section>
-
-        <!-- Classes -->
         <section class="profile-panel">
           <h2>Classes</h2>
           <div id="classList"></div>
           <a href="/classrooms.html" class="panel-action">+ Browse All Classes</a>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account info modal -->
+  <div class="settings-modal" id="accountModal">
+    <div class="settings-card">
+      <h3>Account information</h3>
+      <p style="color:var(--muted);font-size:0.9rem;margin:0 0 0.5rem;">Username: <strong id="infoUsername"></strong></p>
+      <p style="color:var(--muted);font-size:0.9rem;margin:0 0 0.5rem;">Reputation: <strong id="infoRep"></strong></p>
+      <p style="color:var(--muted);font-size:0.9rem;margin:0 0 1rem;">Tier: <strong id="infoTier"></strong></p>
+      <div class="settings-actions">
+        <button type="button" class="primary" id="accountClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password modal -->
+  <div class="settings-modal" id="passwordModal">
+    <div class="settings-card">
+      <h3>Change password</h3>
+      <label>Current password</label>
+      <input type="password" id="curPass" />
+      <label>New password</label>
+      <input type="password" id="newPass" minlength="6" />
+      <p class="error" id="passError"></p>
+      <div class="settings-actions">
+        <button type="button" class="ghost" id="passCancel">Cancel</button>
+        <button type="button" class="primary" id="passSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Username modal -->
+  <div class="settings-modal" id="usernameModal">
+    <div class="settings-card">
+      <h3>Change username</h3>
+      <label>New username</label>
+      <input type="text" id="newUser" maxlength="20" />
+      <label>Confirm with password</label>
+      <input type="password" id="userPass" />
+      <p class="error" id="userError"></p>
+      <div class="settings-actions">
+        <button type="button" class="ghost" id="userCancel">Cancel</button>
+        <button type="button" class="primary" id="userSave">Save</button>
       </div>
     </div>
   </div>
@@ -48,13 +180,18 @@
         document.getElementById("avatarLabel").style.cursor = "default";
         document.getElementById("avatarLabel").style.pointerEvents = "none";
         document.getElementById("newQuestionBtn").style.display = "none";
+        document.getElementById("menuBtn").style.display = "none";
       }
 
       const { user, questions } = await api(`/api/profile/${profileId}`);
       document.getElementById("profileUsername").textContent = user.username || "user_name";
-      if (user.avatar_url) document.getElementById("profileAvatar").src = user.avatar_url;
+      const avatarSrc = user.avatar_thumb || user.avatar_url;
+      if (avatarSrc) document.getElementById("profileAvatar").src = avatarSrc;
 
-      // Questions panel
+      document.getElementById("infoUsername").textContent = user.username;
+      document.getElementById("infoRep").textContent = user.reputation ?? 0;
+      document.getElementById("infoTier").textContent = user.tier || "Newcomer";
+
       const qEl = document.getElementById("questionList");
       if (!questions.length) {
         qEl.innerHTML = `<p class="empty-note" style="padding:1rem 0;">No questions yet.</p>`;
@@ -63,16 +200,11 @@
           <div class="profile-q-item">
             <div>
               <div class="q-text"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></div>
-              <div class="q-meta">${timeAgo(q.created_at)} · ${q.score ?? 0} ↑ · ${(q.answer_count != null ? q.answer_count : "?")} answers</div>
+              <div class="q-meta">${timeAgo(q.created_at)} · ${q.score ?? 0} ↑</div>
             </div>
-            <span class="chat-icon" title="Answers">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </span>
           </div>`).join("");
       }
 
-      // Classes: fetch all and filter to those created by or (best-effort) joined by user
-      // (membership is not fully exposed on profile API, so we show creator classes + open ones as approximation)
       try {
         const { classrooms } = await api("/api/classrooms");
         const mine = classrooms.filter((c) => c.creator_id === Number(profileId) || c.creator_name === user.username);
@@ -82,29 +214,20 @@
         } else {
           classEl.innerHTML = mine.slice(0, 6).map((c) => {
             const active = c.status === "open";
-            return `
-            <div class="profile-class-item">
+            return `<div class="profile-class-item">
               <div class="class-info">
-                <div class="class-name">
-                  <span style="opacity:0.7;">${active ? "◎" : "◉"}</span>
-                  ${escapeHtml(c.title)}
-                </div>
-                <div class="class-meta">${c.member_count || 0} sessions · ${c.category || "General"}</div>
+                <div class="class-name">${escapeHtml(c.title)}</div>
+                <div class="class-meta">${c.member_count || 0} · ${c.category || "General"}</div>
               </div>
-              <div class="status-toggle ${active ? "active" : "completed"}">
-                <span class="dot"></span>
-                ${active ? "Active" : "Completed"}
-              </div>
+              <div class="status-toggle ${active ? "active" : "completed"}"><span class="dot"></span>${active ? "Active" : "Completed"}</div>
             </div>`;
           }).join("");
         }
       } catch {
-        document.getElementById("classList").innerHTML = `<p class="empty-note" style="padding:1rem 0;">Could not load classes.</p>`;
+        document.getElementById("classList").innerHTML = `<p class="empty-note">Could not load classes.</p>`;
       }
 
-      document.getElementById("newQuestionBtn").addEventListener("click", () => {
-        location.href = "/home.html";
-      });
+      document.getElementById("newQuestionBtn").addEventListener("click", () => { location.href = "/home.html"; });
 
       if (isMe) {
         document.getElementById("avatarInput").addEventListener("change", async (e) => {
@@ -115,7 +238,78 @@
           fd.append("avatar", file);
           const res = await fetch("/api/profile/avatar", { method: "POST", body: fd, credentials: "same-origin" });
           const data = await res.json();
-          if (res.ok) document.getElementById("profileAvatar").src = data.avatar_url;
+          if (res.ok) document.getElementById("profileAvatar").src = data.avatar_thumb || data.avatar_url;
+        });
+
+        // Sandwich menu
+        const menuBtn = document.getElementById("menuBtn");
+        const dropdown = document.getElementById("dropdownMenu");
+        menuBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          dropdown.classList.toggle("open");
+        });
+        document.addEventListener("click", () => dropdown.classList.remove("open"));
+
+        document.getElementById("menuAccount").addEventListener("click", () => {
+          dropdown.classList.remove("open");
+          document.getElementById("accountModal").classList.add("open");
+        });
+        document.getElementById("accountClose").addEventListener("click", () => {
+          document.getElementById("accountModal").classList.remove("open");
+        });
+
+        document.getElementById("menuPassword").addEventListener("click", () => {
+          dropdown.classList.remove("open");
+          document.getElementById("passError").textContent = "";
+          document.getElementById("passwordModal").classList.add("open");
+        });
+        document.getElementById("passCancel").addEventListener("click", () => {
+          document.getElementById("passwordModal").classList.remove("open");
+        });
+        document.getElementById("passSave").addEventListener("click", async () => {
+          try {
+            await api("/api/account/password", {
+              method: "POST",
+              body: JSON.stringify({
+                currentPassword: document.getElementById("curPass").value,
+                newPassword: document.getElementById("newPass").value,
+              }),
+            });
+            document.getElementById("passwordModal").classList.remove("open");
+            alert("Password updated.");
+          } catch (err) {
+            document.getElementById("passError").textContent = err.message;
+          }
+        });
+
+        document.getElementById("menuUsername").addEventListener("click", () => {
+          dropdown.classList.remove("open");
+          document.getElementById("userError").textContent = "";
+          document.getElementById("usernameModal").classList.add("open");
+        });
+        document.getElementById("userCancel").addEventListener("click", () => {
+          document.getElementById("usernameModal").classList.remove("open");
+        });
+        document.getElementById("userSave").addEventListener("click", async () => {
+          try {
+            const data = await api("/api/account/username", {
+              method: "POST",
+              body: JSON.stringify({
+                newUsername: document.getElementById("newUser").value.trim(),
+                password: document.getElementById("userPass").value,
+              }),
+            });
+            document.getElementById("profileUsername").textContent = data.username;
+            document.getElementById("usernameModal").classList.remove("open");
+            alert("Username updated.");
+          } catch (err) {
+            document.getElementById("userError").textContent = err.message;
+          }
+        });
+
+        document.getElementById("menuLogout").addEventListener("click", async () => {
+          await api("/api/logout", { method: "POST" });
+          location.href = "/index.html";
         });
       }
     })();

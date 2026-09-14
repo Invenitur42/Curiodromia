@@ -9,15 +9,18 @@
 <body>
   <div class="app-shell">
     <div class="app-layout">
-      <!-- Left: Categories -->
       <aside class="sidebar-left">
         <h2>Category</h2>
+        <input type="search" id="catSearch" placeholder="Search categories…" style="width:100%;margin-bottom:0.6rem;font-size:0.85rem;" />
         <ul class="category-list" id="categoryList">
           <li><button type="button" class="active" data-cat="">All</button></li>
         </ul>
+        <div style="margin-top:0.75rem;display:flex;gap:0.35rem;">
+          <input type="text" id="newCatInput" placeholder="New category" maxlength="40" style="flex:1;font-size:0.8rem;padding:0.4rem 0.5rem;" />
+          <button type="button" class="ghost small" id="addCatBtn">+</button>
+        </div>
       </aside>
 
-      <!-- Center: Feed -->
       <main class="main-col">
         <h1>Feed</h1>
         <div class="sort-tabs">
@@ -29,30 +32,26 @@
         <div id="questionList"></div>
       </main>
 
-      <!-- Right: Ask -->
-      <aside class="sidebar-right">
+      <aside class="sidebar-right" id="inputSidebar">
         <h2>Input</h2>
         <div class="input-panel">
           <textarea id="askTitle" placeholder="Ask a question..." maxlength="200"></textarea>
           <div class="media-row">
-            <button type="button" class="media-btn" title="Image">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-              Image
-            </button>
-            <button type="button" class="media-btn" title="Video">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3V9z"/></svg>
-              Video
-            </button>
-            <button type="button" class="media-btn" title="Audio">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              Audio
-            </button>
+            <label class="media-btn"><input type="file" id="mediaImage" accept="image/*" hidden />🖼 Image</label>
+            <label class="media-btn"><input type="file" id="mediaVideo" accept="video/*" hidden />🎬 Video</label>
+            <label class="media-btn"><input type="file" id="mediaAudio" accept="audio/*" hidden />🔊 Audio</label>
           </div>
-          <select id="askCategory" style="margin-top:0.25rem;"></select>
+          <p id="mediaLabel" style="font-size:0.75rem;color:var(--muted);min-height:1em;"></p>
+          <select id="askCategory"></select>
           <button type="button" class="primary post-btn" id="postBtn">Post</button>
           <p class="error" id="askError" style="min-height:1.2em;"></p>
         </div>
       </aside>
+    </div>
+
+    <!-- Mobile floating post bar keeps creation visible -->
+    <div class="mobile-post-bar" id="mobilePostBar">
+      <button type="button" class="primary" id="mobilePostOpen">+ Ask a question</button>
     </div>
   </div>
 
@@ -61,12 +60,20 @@
     let me = null;
     let currentCategory = "";
     let currentSort = "most";
+    let selectedFile = null;
+    let allCategories = [];
 
-    const categoryIcons = {
-      psychology: "🧠", physics: "⚛️", maths: "π", "self-care": "♡",
-      philosophy: "⌛", biology: "🍃", creativity: "💡", history: "🏛",
-      language: "文", technology: "⚙", art: "🎨",
-    };
+    function renderCategoryList(filter = "") {
+      const list = document.getElementById("categoryList");
+      const q = filter.toLowerCase();
+      const filtered = allCategories.filter((c) => !q || c.label.toLowerCase().includes(q) || c.slug.includes(q));
+      list.innerHTML = `<li><button type="button" class="${currentCategory === "" ? "active" : ""}" data-cat="">All</button></li>`;
+      filtered.forEach((c) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<button type="button" data-cat="${escapeHtml(c.slug)}" class="${currentCategory === c.slug ? "active" : ""}">${escapeHtml(c.label)}</button>`;
+        list.appendChild(li);
+      });
+    }
 
     async function loadQuestions() {
       const params = new URLSearchParams({ scope: "today", sort: "trending" });
@@ -90,45 +97,63 @@
         el.innerHTML = `<p class="empty-note">No questions yet — be the first to ask one.</p>`;
         return;
       }
-      el.innerHTML = questions.map((q) => `
+      el.innerHTML = questions.map((q) => {
+        let mediaHtml = "";
+        if (q.media_url && q.media_type === "image") {
+          mediaHtml = `<img src="${escapeHtml(q.media_url)}" alt="" class="feed-media-thumb" />`;
+        } else if (q.media_url && q.media_type === "video") {
+          mediaHtml = `<video src="${escapeHtml(q.media_url)}" class="feed-media-thumb" muted playsinline></video>`;
+        } else if (q.media_url && q.media_type === "audio") {
+          mediaHtml = `<audio src="${escapeHtml(q.media_url)}" controls style="max-width:140px;height:32px;"></audio>`;
+        }
+        const thumb = q.avatar_thumb || q.avatar_url || "/img/default-avatar.svg";
+        return `
         <article class="question-card" data-id="${q.id}">
           <div class="vote-col feed-vote">
-            <button type="button" class="vote-btn" data-vote="1" data-id="${q.id}" title="Upvote">▲</button>
+            <button type="button" class="vote-btn" data-vote="1" data-id="${q.id}">▲</button>
             <span class="vote-score">${q.score ?? 0}</span>
-            <button type="button" class="vote-btn" data-vote="-1" data-id="${q.id}" title="Downvote">▼</button>
+            <button type="button" class="vote-btn" data-vote="-1" data-id="${q.id}">▼</button>
           </div>
           <div class="q-content">
             <p class="q-title"><a href="/question.html?id=${q.id}">${escapeHtml(q.title)}</a></p>
             <div class="q-meta">
+              <img src="${escapeHtml(thumb)}" class="avatar-sm" alt="" style="width:18px;height:18px;" />
               <span>${escapeHtml(q.username || "anon")}</span>
               <span>${timeAgo(q.created_at)}</span>
               ${q.category ? `<span class="badge category">${escapeHtml(q.category)}</span>` : ""}
-              <span>${q.answer_count || 0} answer${(q.answer_count || 0) === 1 ? "" : "s"}</span>
+              <span>${q.answer_count || 0} answers</span>
             </div>
+            ${mediaHtml}
           </div>
-        </article>`).join("");
+        </article>`;
+      }).join("");
 
       el.querySelectorAll(".vote-btn").forEach((btn) => {
         btn.addEventListener("click", async (e) => {
           e.preventDefault();
-          e.stopPropagation();
           try {
             const { score } = await api("/api/vote", {
               method: "POST",
-              body: JSON.stringify({
-                targetType: "question",
-                targetId: Number(btn.dataset.id),
-                value: Number(btn.dataset.vote),
-              }),
+              body: JSON.stringify({ targetType: "question", targetId: Number(btn.dataset.id), value: Number(btn.dataset.vote) }),
             });
             const card = btn.closest(".question-card");
-            if (card) {
-              const scoreEl = card.querySelector(".vote-score");
-              if (scoreEl) scoreEl.textContent = score;
-            }
+            if (card) card.querySelector(".vote-score").textContent = score;
           } catch (err) {
             alert(err.message);
           }
+        });
+      });
+    }
+
+    function bindMedia(inputId, label) {
+      document.getElementById(inputId).addEventListener("change", (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        selectedFile = f;
+        document.getElementById("mediaLabel").textContent = `${label}: ${f.name}`;
+        // clear other inputs
+        ["mediaImage", "mediaVideo", "mediaAudio"].forEach((id) => {
+          if (id !== inputId) document.getElementById(id).value = "";
         });
       });
     }
@@ -151,41 +176,67 @@
         return;
       }
       try {
-        await api("/api/questions", {
-          method: "POST",
-          body: JSON.stringify({ title, body: "", category: category || null }),
-        });
+        const fd = new FormData();
+        fd.append("title", title);
+        if (category) fd.append("category", category);
+        if (selectedFile) fd.append("media", selectedFile);
+        const res = await fetch("/api/questions", { method: "POST", body: fd, credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
         document.getElementById("askTitle").value = "";
+        document.getElementById("mediaLabel").textContent = "";
+        selectedFile = null;
         loadQuestions();
       } catch (err) {
         document.getElementById("askError").textContent = err.message;
       }
     });
 
+    document.getElementById("catSearch").addEventListener("input", (e) => {
+      renderCategoryList(e.target.value);
+    });
+
+    document.getElementById("categoryList").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-cat]");
+      if (!btn) return;
+      currentCategory = btn.dataset.cat || "";
+      renderCategoryList(document.getElementById("catSearch").value);
+      loadQuestions();
+    });
+
+    document.getElementById("addCatBtn").addEventListener("click", async () => {
+      const label = document.getElementById("newCatInput").value.trim();
+      if (!label) return;
+      try {
+        const { category } = await api("/api/categories", { method: "POST", body: JSON.stringify({ label }) });
+        document.getElementById("newCatInput").value = "";
+        allCategories = (await api("/api/categories")).categories;
+        renderCategoryList();
+        const sel = document.getElementById("askCategory");
+        sel.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(category.slug)}">${escapeHtml(category.label)}</option>`);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById("mobilePostOpen").addEventListener("click", () => {
+      document.getElementById("inputSidebar").classList.toggle("mobile-open");
+    });
+
     (async function init() {
       me = await requireSession();
       renderBottomNav("home");
+      bindMedia("mediaImage", "Image");
+      bindMedia("mediaVideo", "Video");
+      bindMedia("mediaAudio", "Audio");
 
       const { categories } = await api("/api/categories");
-      const list = document.getElementById("categoryList");
+      allCategories = categories;
+      renderCategoryList();
       const askSel = document.getElementById("askCategory");
-      askSel.innerHTML = `<option value="">Choose category (optional)</option>`;
-
+      askSel.innerHTML = `<option value="">Category (optional)</option>`;
       categories.forEach((c) => {
-        const icon = categoryIcons[c.slug] || "•";
-        const li = document.createElement("li");
-        li.innerHTML = `<button type="button" data-cat="${escapeHtml(c.slug)}"><span class="icon">${icon}</span>${escapeHtml(c.label)}</button>`;
-        list.appendChild(li);
         askSel.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(c.slug)}">${escapeHtml(c.label)}</option>`);
-      });
-
-      list.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-cat]");
-        if (!btn) return;
-        list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentCategory = btn.dataset.cat || "";
-        loadQuestions();
       });
 
       loadQuestions();
