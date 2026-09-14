@@ -22,9 +22,7 @@ try {
   throw err;
 }
 
-// Broad skill taxonomy — one category for virtually any skill someone might want to learn
 const CATEGORIES = [
-  // Tech & computing
   ["web-dev", "Web Development"],
   ["mobile-dev", "Mobile Development"],
   ["game-dev", "Game Development"],
@@ -35,7 +33,6 @@ const CATEGORIES = [
   ["databases", "Databases"],
   ["programming", "Programming Fundamentals"],
   ["hardware", "Hardware & Embedded"],
-  // Creative
   ["design", "Design & UX"],
   ["graphic-design", "Graphic Design"],
   ["photography", "Photography"],
@@ -44,54 +41,45 @@ const CATEGORIES = [
   ["music-production", "Music Production"],
   ["writing", "Writing & Storytelling"],
   ["drawing", "Drawing & Illustration"],
-  // Business & money
   ["business", "Business & Startups"],
   ["marketing", "Marketing"],
   ["finance", "Personal Finance"],
   ["investing", "Investing"],
   ["sales", "Sales"],
   ["product-management", "Product Management"],
-  // Languages & communication
   ["languages", "World Languages"],
   ["english", "English"],
   ["public-speaking", "Public Speaking"],
-  // STEM
   ["mathematics", "Mathematics"],
   ["physics", "Physics"],
   ["chemistry", "Chemistry"],
   ["biology", "Biology"],
   ["engineering", "Engineering"],
   ["astronomy", "Astronomy & Space"],
-  // Trades & practical
   ["cooking", "Cooking & Baking"],
   ["gardening", "Gardening"],
   ["woodworking", "Woodworking"],
   ["home-repair", "Home Repair & DIY"],
   ["automotive", "Automotive"],
   ["sewing", "Sewing & Textiles"],
-  // Health & body
   ["fitness", "Fitness & Strength"],
   ["yoga", "Yoga & Mobility"],
   ["nutrition", "Nutrition"],
   ["mental-health", "Mental Health"],
   ["first-aid", "First Aid & Safety"],
-  // Mind & life
   ["career", "Career Growth"],
   ["productivity", "Productivity"],
   ["philosophy", "Philosophy"],
   ["psychology", "Psychology"],
   ["history", "History"],
   ["law", "Law & Civics"],
-  // Arts & culture
   ["music-theory", "Music Theory & Instruments"],
   ["dance", "Dance"],
   ["theater", "Theater & Acting"],
   ["film", "Film Studies"],
-  // Games & hobbies
   ["chess", "Chess & Strategy Games"],
   ["board-games", "Board Games"],
   ["crafts", "Crafts & Making"],
-  // Catch-all
   ["general", "General Knowledge"],
 ];
 
@@ -160,7 +148,7 @@ const RESOURCES = {
     ["Refactoring UI", "Practical visual design tips.", "https://www.refactoringui.com"],
     ["Laws of UX", "Psychology principles behind good design.", "https://lawsofux.com"],
     ["Figma Learn", "Official Figma tutorials.", "https://help.figma.com/hc/en-us/categories/360002032553"],
-    ["Interaction Design Foundation Free",", "Free UX articles and intros.", "https://www.interaction-design.org"],
+    ["Interaction Design Foundation Free", "Free UX articles and intros.", "https://www.interaction-design.org"],
   ],
   "graphic-design": [
     ["Canva Design School", "Free design courses and templates.", "https://www.canva.com/designschool/"],
@@ -337,7 +325,7 @@ const RESOURCES = {
     ["USDA MyPlate", "Practical balanced-eating guidelines.", "https://www.myplate.gov"],
   ],
   "mental-health": [
-    ["Mindfulness-Based Stress Reduction guides", "Intro to MBSR practices.", "https://www.mindful.org"],
+    ["Mindful.org", "Mindfulness guides and practices.", "https://www.mindful.org"],
     ["WHO Mental Health", "Global mental health information.", "https://www.who.int/health-topics/mental-health"],
     ["Therapist Aid Worksheets", "Free psychoeducation worksheets.", "https://www.therapistaid.com"],
     ["7 Cups", "Free emotional support chat (community).", "https://www.7cups.com"],
@@ -351,7 +339,6 @@ const RESOURCES = {
     ["Ask a Manager", "Workplace advice.", "https://www.askamanager.org"],
     ["Levels.fyi", "Compensation data for tech roles.", "https://www.levels.fyi"],
     ["LeetCode", "Technical interview practice.", "https://leetcode.com"],
-    ["LinkedIn Learning Free Week", "Periodic free access; also free articles.", "https://www.linkedin.com/learning/"],
   ],
   productivity: [
     ["Todoist Guides", "Getting Things Done style productivity.", "https://www.todoist.com/productivity-methods"],
@@ -385,9 +372,8 @@ const RESOURCES = {
     ["Hoffman Academy", "Free piano lessons for beginners.", "https://www.hoffmanacademy.com"],
   ],
   dance: [
-    ["STEPDANCE / STEEZY free", "Online dance classes (free tiers).", "https://www.steezy.co"],
+    ["STEEZY", "Online dance classes (free tiers).", "https://www.steezy.co"],
     ["DancePlug Free", "Selected free dance tutorials.", "https://www.danceplug.com"],
-    ["YouTube Ballet Toolkit", "Search major schools’ free technique videos.", "https://www.youtube.com"],
   ],
   theater: [
     ["Drama Notebook Free", "Theater games and lesson ideas.", "https://www.dramanotebook.com"],
