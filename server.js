@@ -10,8 +10,8 @@ const { Server } = require("socket.io");
 const { db, reputationTier, userReputation } = require("./db/queries");
 
 const PORT = process.env.PORT || 4000;
-const AVATAR_DIR = path.join(__dirname, "public", "uploads", "avatars");
-fs.mkdirSync(AVATAR_DIR, { recursive: true });
+const USERS_DIR = path.join(__dirname, "public", "uploads", "users");
+fs.mkdirSync(USERS_DIR, { recursive: true });
 
 const app = express();
 const server = http.createServer(app);
@@ -51,55 +51,77 @@ function publicUser(row) {
   };
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
-const PASSWORD_RE = /^[a-zA-Z0-9]{10,20}$/;
+/** Ensure a profile folder exists for this username under public/uploads/users/{username}/ */
+function ensureUserFolder(username) {
+  const safe = String(username).replace(/[^a-zA-Z0-9_\-]/g, "_");
+  const dir = path.join(USERS_DIR, safe);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
-// ---------------- avatar upload ----------------
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const PASSWORD_MIN = 6;
+
+// ---------------- avatar upload (stored in per-user folder) ----------------
 
 const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, AVATAR_DIR),
+  destination: (req, file, cb) => {
+    const user = db.prepare("SELECT username FROM users WHERE id = ?").get(req.session.userId);
+    if (!user) return cb(new Error("User not found"));
+    const dir = ensureUserFolder(user.username);
+    cb(null, dir);
+  },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `u${req.session.userId}-${Date.now()}${ext}`);
+    cb(null, `avatar${ext}`);
   },
 });
 const uploadAvatar = multer({ storage: avatarStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 app.post("/api/profile/avatar", requireAuth, uploadAvatar.single("avatar"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file received" });
-  const url = `/uploads/avatars/${req.file.filename}`;
+  const user = db.prepare("SELECT username FROM users WHERE id = ?").get(req.session.userId);
+  const safe = String(user.username).replace(/[^a-zA-Z0-9_\-]/g, "_");
+  const url = `/uploads/users/${safe}/${req.file.filename}`;
   db.prepare("UPDATE users SET avatar_url = ? WHERE id = ?").run(url, req.session.userId);
   res.json({ avatar_url: url });
 });
 
-// ---------------- auth ----------------
-
-app.post("/api/register", (req, res) => {
-  const { username, password } = req.body || {};
-  if (!USERNAME_RE.test(username || "")) {
-    return res.status(400).json({ error: "Username must be 3-20 letters, numbers or underscores." });
-  }
-  if (!PASSWORD_RE.test(password || "")) {
-    return res.status(400).json({ error: "Password must be 10-20 alphanumeric characters." });
-  }
-  if (db.prepare("SELECT id FROM users WHERE username = ?").get(username)) {
-    return res.status(409).json({ error: "That username is taken." });
-  }
-  const hash = bcrypt.hashSync(password, 10);
-  const info = db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)").run(username, hash);
-  req.session.userId = info.lastInsertRowid;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
-  res.json({ user: publicUser(user), needsOnboarding: true });
-});
+// ---------------- auth (unified login — no separate signup) ----------------
+// First time a username is used it is created. Subsequent logins check the password.
+// needsOnboarding is true until the user completes the setup flow.
 
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body || {};
-  const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username || "");
-  if (!user || !bcrypt.compareSync(password || "", user.password_hash)) {
-    return res.status(401).json({ error: "Incorrect username or password." });
+  if (!USERNAME_RE.test(username || "")) {
+    return res.status(400).json({ error: "Username must be 3–20 letters, numbers or underscores." });
   }
+  if (!password || password.length < PASSWORD_MIN) {
+    return res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN} characters.` });
+  }
+
+  let user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+
+  if (!user) {
+    // First login → create account + profile folder
+    const hash = bcrypt.hashSync(password, 10);
+    const info = db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)").run(username, hash);
+    ensureUserFolder(username);
+    req.session.userId = info.lastInsertRowid;
+    user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+    return res.json({ user: publicUser(user), needsOnboarding: true, isNew: true });
+  }
+
+  // Returning user — verify password
+  if (!bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ error: "Incorrect password." });
+  }
+
+  // Ensure profile folder still exists
+  ensureUserFolder(user.username);
+
   req.session.userId = user.id;
-  res.json({ user: publicUser(user), needsOnboarding: !user.mode });
+  res.json({ user: publicUser(user), needsOnboarding: !user.mode, isNew: false });
 });
 
 app.post("/api/logout", (req, res) => req.session.destroy(() => res.json({ ok: true })));
@@ -162,7 +184,6 @@ app.get("/api/questions", requireAuth, (req, res) => {
     )
     .all(...params);
 
-  // "Trending today" gracefully falls back to all-time trending if nothing was posted today yet.
   if (scope === "today" && rows.length === 0) {
     rows = db
       .prepare(
@@ -252,7 +273,6 @@ app.post("/api/questions/:id/answers", requireAuth, (req, res) => {
   res.json({ answer });
 });
 
-// value: 1 (up), -1 (down), 0 (remove my vote)
 app.post("/api/vote", requireAuth, (req, res) => {
   const { targetType, targetId, value } = req.body || {};
   if (!["question", "answer"].includes(targetType) || ![1, -1, 0].includes(value)) {
@@ -287,8 +307,6 @@ app.post("/api/vote", requireAuth, (req, res) => {
     .prepare("SELECT COALESCE(SUM(value),0) as s FROM votes WHERE target_type=? AND target_id=?")
     .get(targetType, targetId).s;
 
-  // If this vote happened inside a classroom question/answer, let the room know so
-  // rankings and milestones can update live for everyone present.
   let classroomId = null;
   if (targetType === "question") classroomId = target.classroom_id;
   else {
@@ -330,7 +348,7 @@ app.get("/api/classrooms", requireAuth, (req, res) => {
 
 app.post("/api/classrooms", requireAuth, (req, res) => {
   const { title, category } = req.body || {};
-  if (!title || !title.trim()) return res.status(400).json({ error: "Give your classroom a topic/title." });
+  if (!title || !title.trim()) return res.status(400).json({ error: "Give your class a topic/title." });
   const info = db
     .prepare("INSERT INTO classrooms (title, category, creator_id, status) VALUES (?, ?, ?, 'open')")
     .run(title.trim(), category || null, req.session.userId);
@@ -347,7 +365,7 @@ app.get("/api/classrooms/:id", requireAuth, (req, res) => {
       `SELECT c.*, u.username as creator_name FROM classrooms c JOIN users u ON u.id=c.creator_id WHERE c.id = ?`
     )
     .get(req.params.id);
-  if (!c) return res.status(404).json({ error: "Classroom not found." });
+  if (!c) return res.status(404).json({ error: "Class not found." });
 
   const isMember = !!db
     .prepare("SELECT 1 FROM classroom_members WHERE classroom_id=? AND user_id=?")
@@ -370,7 +388,6 @@ app.get("/api/classrooms/:id", requireAuth, (req, res) => {
     )
     .all(c.id);
 
-  // Milestones: the 3 highest-rated answers anywhere in this classroom.
   const milestones = db
     .prepare(
       `SELECT a.*, u.username, u.avatar_url, q.title as question_title, q.id as question_id,
@@ -390,8 +407,8 @@ app.get("/api/classrooms/:id", requireAuth, (req, res) => {
 
 app.post("/api/classrooms/:id/join", requireAuth, (req, res) => {
   const c = db.prepare("SELECT * FROM classrooms WHERE id = ?").get(req.params.id);
-  if (!c) return res.status(404).json({ error: "Classroom not found." });
-  if (c.status === "ended") return res.status(400).json({ error: "This classroom has ended." });
+  if (!c) return res.status(404).json({ error: "Class not found." });
+  if (c.status === "ended") return res.status(400).json({ error: "This class has ended." });
   db.prepare("INSERT OR IGNORE INTO classroom_members (classroom_id, user_id) VALUES (?, ?)").run(
     c.id,
     req.session.userId
@@ -403,8 +420,8 @@ app.post("/api/classrooms/:id/join", requireAuth, (req, res) => {
 
 app.post("/api/classrooms/:id/end", requireAuth, (req, res) => {
   const c = db.prepare("SELECT * FROM classrooms WHERE id = ?").get(req.params.id);
-  if (!c) return res.status(404).json({ error: "Classroom not found." });
-  if (c.creator_id !== req.session.userId) return res.status(403).json({ error: "Only the creator can end this classroom." });
+  if (!c) return res.status(404).json({ error: "Class not found." });
+  if (c.creator_id !== req.session.userId) return res.status(403).json({ error: "Only the creator can end this class." });
 
   const { conclusion } = req.body || {};
   db.prepare(
@@ -415,8 +432,6 @@ app.post("/api/classrooms/:id/end", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Reserved for future work — see README. Always returns 501 so the UI can
-// show "under development" instead of silently failing.
 app.post("/api/classrooms/:id/generate-conclusion", requireAuth, (req, res) => {
   res.status(501).json({ error: "AI-generated conclusions are still under development. Please write one manually for now." });
 });
@@ -437,7 +452,7 @@ app.get("/api/profile/:id", requireAuth, (req, res) => {
   res.json({ user: publicUser(user), questions });
 });
 
-// ---------------- realtime: classroom rooms ----------------
+// ---------------- realtime ----------------
 
 io.on("connection", (socket) => {
   const userId = socket.request.session && socket.request.session.userId;

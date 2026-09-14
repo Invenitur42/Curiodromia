@@ -34,35 +34,30 @@ button, input, textarea, select {
   color: var(--text);
 }
 
-/* ---------- Auth / Onboarding (kept functional) ---------- */
-.auth-screen, .onboard-screen {
+/* ---------- Onboarding ---------- */
+.onboard-screen {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at top, #111, #000 70%);
 }
-.auth-card, .onboard-card {
-  width: 380px;
+.onboard-card {
+  width: 480px;
+  max-width: 94vw;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2rem;
+  text-align: center;
 }
 .brand { margin: 0 0 0.25rem; font-size: 1.9rem; font-weight: 600; }
 .brand span { color: var(--muted); }
 .tagline { color: var(--muted); margin: 0 0 1.5rem; font-size: 0.9rem; }
-.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
-.tab {
-  flex: 1; padding: 0.5rem; background: transparent;
-  border: 1px solid var(--border); color: var(--muted);
-  border-radius: 10px; cursor: pointer;
-}
-.tab.active { background: var(--text); color: #000; border-color: var(--text); font-weight: 600; }
-.auth-form, .goal-form { display: flex; flex-direction: column; gap: 0.9rem; }
-.auth-form label, .goal-form label {
+.goal-form { display: flex; flex-direction: column; gap: 0.9rem; }
+.goal-form label {
   display: flex; flex-direction: column; gap: 0.35rem;
-  font-size: 0.85rem; color: var(--muted);
+  font-size: 0.85rem; color: var(--muted); text-align: left;
 }
 input[type="text"], input[type="password"], input[type="search"], textarea, select {
   padding: 0.65rem 0.8rem;
@@ -75,7 +70,6 @@ input[type="text"], input[type="password"], input[type="search"], textarea, sele
 input:focus, textarea:focus, select:focus { border-color: var(--border-light); }
 .hint { color: var(--muted); font-size: 0.78rem; }
 .error { color: #ff6b6b; font-size: 0.8rem; min-height: 1em; }
-.demo-note { margin-top: 1rem; font-size: 0.78rem; color: var(--muted); text-align: center; }
 
 button.primary {
   background: var(--text); color: #000; border: none;
@@ -92,7 +86,10 @@ button.ghost {
 }
 button.ghost:hover { border-color: var(--border-light); color: var(--text); }
 button.small { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
-button.link-btn { background: none; border: none; color: var(--accent-soft); cursor: pointer; padding: 0; font: inherit; }
+button.danger {
+  background: #ff6b6b; color: white; border: none;
+  padding: 0.55rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer;
+}
 
 .choice-row { display: flex; gap: 1rem; margin-top: 1.5rem; }
 .choice-card {
@@ -105,12 +102,12 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
 .goal-form { margin-top: 1.5rem; display: none; flex-direction: column; gap: 0.8rem; text-align: left; }
 .goal-form.visible { display: flex; }
 
-/* ---------- App shell: bottom navigation ---------- */
+/* ---------- Bottom navigation ---------- */
 .app-shell {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  padding-bottom: 72px; /* space for bottom nav */
+  padding-bottom: 72px;
 }
 
 .bottom-nav {
@@ -150,14 +147,8 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
   stroke-linejoin: round;
 }
 .bottom-nav a.active svg { stroke-width: 2.2; }
-.bottom-nav .nav-label {
-  font-size: 0.65rem;
-  margin-top: 2px;
-  color: inherit;
-  display: none; /* shown on home if desired */
-}
 
-/* ---------- Layout helpers matching mockups ---------- */
+/* ---------- App layout ---------- */
 .app-layout {
   display: grid;
   grid-template-columns: 200px 1fr 280px;
@@ -234,7 +225,7 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
   background: var(--bg);
 }
 
-/* ---------- Feed / Home ---------- */
+/* ---------- Feed ---------- */
 .sort-tabs {
   display: flex;
   gap: 0.4rem;
@@ -293,23 +284,40 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
   gap: 0.5rem 0.85rem;
   align-items: center;
 }
-.question-card .vote-score {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--accent-soft);
-  min-width: 2.2rem;
+
+/* Vote column used on feed + detail pages */
+.vote-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 40px;
 }
-.question-card .media-icon {
-  width: 28px; height: 28px;
-  border-radius: 6px;
+.vote-btn {
   background: var(--panel-2);
   border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
   color: var(--muted);
-  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.vote-btn:hover {
+  border-color: var(--border-light);
+  color: var(--text);
+}
+.vote-btn.active-up { background: #4ade80; color: #000; border-color: #4ade80; }
+.vote-btn.active-down { background: #ff6b6b; color: white; border-color: #ff6b6b; }
+.vote-score {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--accent-soft);
 }
 
-/* Input panel (right on home) */
+/* Input panel */
 .input-panel {
   display: flex;
   flex-direction: column;
@@ -345,7 +353,7 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
   margin-top: 0.25rem;
 }
 
-/* ---------- Classes page ---------- */
+/* ---------- Classes ---------- */
 .classes-header {
   display: flex;
   align-items: center;
@@ -388,7 +396,6 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
   border-radius: 8px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  object-fit: cover;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   color: var(--muted);
@@ -446,7 +453,7 @@ button.link-btn { background: none; border: none; color: var(--accent-soft); cur
 }
 .upload-zone:hover { border-color: var(--border-light); color: var(--text); }
 
-/* ---------- Profile page ---------- */
+/* ---------- Profile ---------- */
 .profile-page {
   max-width: 900px;
   margin: 0 auto;
@@ -589,7 +596,7 @@ dialog::backdrop { background: rgba(0,0,0,0.7); }
 .form-col { display: flex; flex-direction: column; gap: 0.8rem; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
 
-/* Keep older classroom / question pages usable */
+/* Secondary pages (question, classroom, resources) */
 .navbar {
   display: flex; align-items: center; gap: 1.2rem;
   padding: 0.8rem 1.5rem; border-bottom: 1px solid var(--border);
@@ -607,26 +614,11 @@ dialog::backdrop { background: rgba(0,0,0,0.7); }
 .page { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; gap: 1rem; flex-wrap: wrap; }
 .page-header h1 { font-size: 1.4rem; margin: 0; }
-.filters { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-.tab-strip { display: flex; gap: 0.4rem; }
-.tab-strip button {
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
-  padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer; font-size: 0.85rem;
-}
-.tab-strip button.active { background: var(--text); color: #000; border-color: var(--text); font-weight: 600; }
 .card {
   background: var(--panel); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 1.1rem 1.2rem; margin-bottom: 0.9rem;
 }
 .q-card { display: flex; gap: 1rem; }
-.vote-col { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; min-width: 44px; }
-.vote-btn {
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
-  width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 1rem; line-height: 1;
-}
-.vote-btn.active-up { background: #4ade80; color: #000; border-color: #4ade80; }
-.vote-btn.active-down { background: #ff6b6b; color: white; border-color: #ff6b6b; }
-.vote-score { font-weight: 700; }
 .q-body { flex: 1; min-width: 0; }
 .q-title { font-weight: 700; font-size: 1.05rem; margin: 0 0 0.3rem; }
 .q-title a { color: var(--text); }
@@ -646,11 +638,6 @@ dialog::backdrop { background: rgba(0,0,0,0.7); }
 .resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem; }
 .resource-card h3 { margin: 0 0 0.4rem; font-size: 1rem; }
 .resource-card p { margin: 0 0 0.5rem; color: var(--muted); font-size: 0.85rem; }
-.profile-header { display: flex; gap: 1.2rem; align-items: center; margin-bottom: 1.5rem; }
-.profile-stats { display: flex; gap: 1.5rem; margin-top: 0.4rem; }
-.stat { text-align: center; }
-.stat .num { font-size: 1.3rem; font-weight: 700; }
-.stat .label { font-size: 0.75rem; color: var(--muted); }
 .dev-tag { font-size: 0.7rem; color: var(--muted); border: 1px dashed var(--muted); border-radius: 999px; padding: 0.1rem 0.5rem; margin-left: 0.4rem; }
 
 @media (max-width: 720px) {
