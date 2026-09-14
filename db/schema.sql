@@ -1,5 +1,4 @@
 -- Curiodromia schema (SQLite)
--- Applied automatically by db/init.js on first run.
 
 CREATE TABLE IF NOT EXISTS users (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +33,7 @@ CREATE TABLE IF NOT EXISTS questions (
   title         TEXT NOT NULL,
   body          TEXT,
   category      TEXT,
-  media_type    TEXT DEFAULT NULL,   -- 'image' | 'video' | 'audio'
+  media_type    TEXT DEFAULT NULL,
   media_url     TEXT DEFAULT NULL,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id),
@@ -46,6 +45,8 @@ CREATE TABLE IF NOT EXISTS answers (
   question_id INTEGER NOT NULL,
   user_id     INTEGER NOT NULL,
   body        TEXT NOT NULL,
+  media_type  TEXT DEFAULT NULL,
+  media_url   TEXT DEFAULT NULL,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (question_id) REFERENCES questions(id),
   FOREIGN KEY (user_id) REFERENCES users(id)
@@ -85,7 +86,18 @@ CREATE TABLE IF NOT EXISTS classroom_members (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- Track (follow) other users
+CREATE TABLE IF NOT EXISTS tracks (
+  tracker_id  INTEGER NOT NULL,
+  tracked_id  INTEGER NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (tracker_id, tracked_id),
+  FOREIGN KEY (tracker_id) REFERENCES users(id),
+  FOREIGN KEY (tracked_id) REFERENCES users(id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_questions_classroom ON questions(classroom_id);
 CREATE INDEX IF NOT EXISTS idx_questions_created ON questions(created_at);
 CREATE INDEX IF NOT EXISTS idx_answers_question ON answers(question_id);
 CREATE INDEX IF NOT EXISTS idx_votes_target ON votes(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_tracks_tracked ON tracks(tracked_id);
