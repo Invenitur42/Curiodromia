@@ -1,3 +1,12 @@
+Continuation notes:
+  - Implement User search
+  - Implement showing list of trackers and tracking
+  - Implement close feature for classroom side panel
+  - Add Profile picture upload for different aspect ratio not accepted bug (Input a photo editor to crop)
+
+
+
+
 # Curiodromia
 
 A social media app **in progress** aimed ultimately at being a place where people can ask questions and figure things out with the help of a community of other users — where merit and recognition is allocated fundamentally based on the quality of your questions and answers.
