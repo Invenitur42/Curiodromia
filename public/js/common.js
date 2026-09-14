@@ -44,6 +44,16 @@ async function requireSession({ allowPreOnboarding = false } = {}) {
   return user;
 }
 
+/** Centered brand logo bar used across main app pages */
+function renderTopLogo() {
+  if (document.querySelector(".top-logo-bar")) return;
+  const bar = document.createElement("div");
+  bar.className = "top-logo-bar";
+  bar.innerHTML = `<a href="/home.html" class="logo-script" aria-label="Curiodromia home">Curiodromia</a>`;
+  document.body.prepend(bar);
+}
+
+/** Bottom navigation matching the mockups */
 function renderBottomNav(active) {
   const existing = document.querySelector(".bottom-nav");
   if (existing) existing.remove();
@@ -65,41 +75,58 @@ function renderBottomNav(active) {
   document.body.appendChild(nav);
 }
 
+/**
+ * Left-edge pull-tab back button for second-level pages.
+ * @param {string} [fallback='/home.html']
+ */
+function renderBackPullTab(fallback = "/home.html") {
+  if (document.querySelector(".back-pulltab")) return;
+  const tab = document.createElement("button");
+  tab.type = "button";
+  tab.className = "back-pulltab";
+  tab.setAttribute("aria-label", "Go back");
+  tab.innerHTML = `
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 18l-6-6 6-6"/>
+    </svg>
+  `;
+  tab.addEventListener("click", () => {
+    if (window.history.length > 1) history.back();
+    else location.href = fallback;
+  });
+  document.body.appendChild(tab);
+}
+
+/** Legacy top nav for secondary pages */
 function renderNav(activeHref) {
+  renderTopLogo();
+  renderBackPullTab(activeHref || "/home.html");
   const host = document.getElementById("navHost");
-  if (!host) return;
-  host.innerHTML = `
-    <header class="navbar">
-      <h1 class="brand">Curiodromia</h1>
-      <nav>
-        <a href="/home.html" data-href="/home.html">Home</a>
-        <a href="/classrooms.html" data-href="/classrooms.html">Classes</a>
-      </nav>
-      <div class="nav-user">
-        <a href="/profile.html" id="navProfileLink" title="Your profile">
-          <img class="avatar-sm" id="navAvatar" src="/img/default-avatar.svg" alt="" />
-        </a>
-        <button type="button" class="ghost small" id="navLogout">Log out</button>
-      </div>
-    </header>`;
-
-  host.querySelectorAll("nav a").forEach((a) => {
-    if (a.dataset.href === activeHref) a.classList.add("active");
-  });
-
-  document.getElementById("navLogout").addEventListener("click", async () => {
-    await api("/api/logout", { method: "POST" });
-    location.href = "/index.html";
-  });
-
-  api("/api/me").then(({ user }) => {
-    if (!user) return;
-    const src = user.avatar_thumb || user.avatar_url;
-    if (src) document.getElementById("navAvatar").src = src;
-    document.getElementById("navProfileLink").href = `/profile.html?id=${user.id}`;
-  });
+  if (host) host.innerHTML = ""; // logo bar replaces old navbar
 }
 
 function qs(name) {
   return new URLSearchParams(location.search).get(name);
+}
+
+/** Render media attachment HTML for feeds and detail pages */
+function renderMediaBlock(mediaType, mediaUrl, { large = false } = {}) {
+  if (!mediaUrl || !mediaType) return "";
+  const cls = large ? "media-block media-block--large" : "media-block";
+  if (mediaType === "image") {
+    return `<div class="${cls}"><img src="${escapeHtml(mediaUrl)}" alt="Attached image" loading="lazy" /></div>`;
+  }
+  if (mediaType === "video") {
+    return `<div class="${cls}"><video src="${escapeHtml(mediaUrl)}" controls playsinline preload="metadata"></video></div>`;
+  }
+  if (mediaType === "audio") {
+    return `
+      <div class="${cls} audio-player">
+        <div class="audio-player-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </div>
+        <audio src="${escapeHtml(mediaUrl)}" controls preload="metadata"></audio>
+      </div>`;
+  }
+  return "";
 }

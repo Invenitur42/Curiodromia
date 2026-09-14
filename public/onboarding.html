@@ -3,35 +3,169 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Welcome to Curiodromia</title>
+<title>Welcome — Curiodromia</title>
 <link rel="stylesheet" href="/css/style.css" />
+<style>
+  .setup-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% -10%, rgba(80,80,80,0.25), transparent),
+      #000;
+  }
+  .setup-card {
+    width: min(440px, 100%);
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-radius: 20px;
+    padding: 2rem 1.75rem 1.75rem;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+  }
+  .setup-logo {
+    font-family: "Segoe Script", "Brush Script MT", cursive;
+    font-size: 1.85rem;
+    text-align: center;
+    margin: 0 0 0.35rem;
+    color: #f2f2f2;
+  }
+  .setup-step {
+    text-align: center;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 1.25rem;
+  }
+  .setup-title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    text-align: center;
+    margin: 0 0 0.4rem;
+  }
+  .setup-sub {
+    text-align: center;
+    color: #888;
+    font-size: 0.9rem;
+    margin: 0 0 1.5rem;
+    line-height: 1.45;
+  }
+  .setup-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .setup-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1rem 1.05rem;
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .setup-option:hover, .setup-option.selected {
+    border-color: #555;
+    background: #151515;
+  }
+  .setup-option .icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .setup-option h3 {
+    margin: 0 0 0.2rem;
+    font-size: 0.98rem;
+    font-weight: 600;
+  }
+  .setup-option p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #888;
+    line-height: 1.35;
+  }
+  .setup-form {
+    display: none;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 1.25rem;
+  }
+  .setup-form.visible { display: flex; }
+  .setup-form label {
+    font-size: 0.8rem;
+    color: #888;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .setup-actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+  }
+  .setup-actions button { flex: 1; }
+  .progress-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+  }
+  .progress-dots span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #333;
+  }
+  .progress-dots span.on { background: #ccc; }
+</style>
 </head>
 <body>
-  <section class="onboard-screen">
-    <div class="onboard-card">
-      <h1 class="brand">Curiodromia<span>.</span></h1>
-      <p class="tagline" id="welcomeLine">What brings you here?</p>
+  <section class="setup-screen">
+    <div class="setup-card">
+      <p class="setup-logo">Curiodromia</p>
+      <div class="progress-dots" id="dots">
+        <span class="on"></span><span></span>
+      </div>
+      <p class="setup-step" id="stepLabel">Step 1 of 2</p>
+      <h1 class="setup-title" id="title">How do you want to start?</h1>
+      <p class="setup-sub" id="subtitle">Pick a path — you can always change later.</p>
 
-      <div class="choice-row">
-        <div class="choice-card" id="chooseLearn">
-          <h3>🎯 I want to learn something</h3>
-          <p>Tell us a topic and we'll point you to curated resources and matching classes.</p>
-        </div>
-        <div class="choice-card" id="chooseExplore">
-          <h3>🧭 Just exploring</h3>
-          <p>Skip straight to today's trending questions, ranked by the community.</p>
-        </div>
+      <div class="setup-options" id="options">
+        <button type="button" class="setup-option" id="chooseLearn">
+          <span class="icon">🎯</span>
+          <span>
+            <h3>I want to learn something</h3>
+            <p>Tell us a topic and we’ll surface resources and matching classes.</p>
+          </span>
+        </button>
+        <button type="button" class="setup-option" id="chooseExplore">
+          <span class="icon">🧭</span>
+          <span>
+            <h3>Just exploring</h3>
+            <p>Jump into the feed of questions ranked by the community.</p>
+          </span>
+        </button>
       </div>
 
-      <form id="goalForm" class="goal-form">
+      <form id="goalForm" class="setup-form">
         <label>What do you want to learn?
-          <input type="text" id="goalInput" placeholder="e.g. building REST APIs, watercolor painting…" required />
+          <input type="text" id="goalInput" placeholder="e.g. REST APIs, watercolor, machine learning…" required />
         </label>
         <label>Closest category
           <select id="categorySelect" required></select>
         </label>
         <p class="error" id="goalError"></p>
-        <button type="submit" class="primary full">See resources</button>
+        <div class="setup-actions">
+          <button type="button" class="ghost" id="backBtn">Back</button>
+          <button type="submit" class="primary">Continue</button>
+        </div>
       </form>
     </div>
   </section>
@@ -40,29 +174,57 @@
   <script>
     (async function init() {
       const user = await requireSession({ allowPreOnboarding: true });
-      document.getElementById("welcomeLine").textContent = `Welcome, ${user.username}. What brings you here?`;
+      document.getElementById("subtitle").textContent =
+        `Welcome, ${user.username}. Pick a path — you can always change later.`;
 
       const { categories } = await api("/api/categories");
       const select = document.getElementById("categorySelect");
-      select.innerHTML = categories.map((c) => `<option value="${c.slug}">${escapeHtml(c.label)}</option>`).join("");
+      select.innerHTML = categories
+        .map((c) => `<option value="${c.slug}">${escapeHtml(c.label)}</option>`)
+        .join("");
     })();
 
+    function showStep2() {
+      document.getElementById("options").style.display = "none";
+      document.getElementById("goalForm").classList.add("visible");
+      document.getElementById("stepLabel").textContent = "Step 2 of 2";
+      document.getElementById("title").textContent = "What are you curious about?";
+      document.getElementById("subtitle").textContent = "We’ll match you with categories and resources.";
+      document.querySelectorAll("#dots span")[1].classList.add("on");
+      document.getElementById("goalInput").focus();
+    }
+
+    function showStep1() {
+      document.getElementById("options").style.display = "flex";
+      document.getElementById("goalForm").classList.remove("visible");
+      document.getElementById("stepLabel").textContent = "Step 1 of 2";
+      document.getElementById("title").textContent = "How do you want to start?";
+      document.getElementById("subtitle").textContent = "Pick a path — you can always change later.";
+      document.querySelectorAll("#dots span")[1].classList.remove("on");
+    }
+
     document.getElementById("chooseExplore").addEventListener("click", async () => {
+      document.getElementById("chooseExplore").classList.add("selected");
       await api("/api/onboarding", { method: "POST", body: JSON.stringify({ mode: "explore" }) });
       location.href = "/home.html";
     });
 
     document.getElementById("chooseLearn").addEventListener("click", () => {
-      document.getElementById("goalForm").classList.add("visible");
-      document.getElementById("goalInput").focus();
+      document.getElementById("chooseLearn").classList.add("selected");
+      showStep2();
     });
+
+    document.getElementById("backBtn").addEventListener("click", showStep1);
 
     document.getElementById("goalForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const goal = document.getElementById("goalInput").value.trim();
       const category = document.getElementById("categorySelect").value;
       try {
-        await api("/api/onboarding", { method: "POST", body: JSON.stringify({ mode: "learning", goal, category }) });
+        await api("/api/onboarding", {
+          method: "POST",
+          body: JSON.stringify({ mode: "learning", goal, category }),
+        });
         location.href = `/resources.html?category=${encodeURIComponent(category)}`;
       } catch (err) {
         document.getElementById("goalError").textContent = err.message;
